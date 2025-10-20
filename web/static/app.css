@@ -1,0 +1,39 @@
+body { font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; padding: 0; color: #333; }
+header { background: #fafafa; border-bottom: 1px solid #eee; padding: 1rem; }
+nav a { margin-right: 1rem; color: #0366d6; text-decoration: none; }
+section { padding: 1rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+.card { border: 1px solid #eee; border-radius: 12px; padding: 1rem; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #eee; padding: 0.5rem; text-align: left; }
+form label { display: block; margin: 0.3rem 0; }
+button { background: #4a90e2; color: #fff; border: none; padding: 0.6rem 0.9rem; border-radius: 8px; cursor: pointer; transition: transform 0.05s ease; }
+button:hover { background: #357ABD; transform: translateY(-1px); }
+
+/* Kids friendly additions */
+.kids-bg { background: linear-gradient(180deg, #fdf6ff 0%, #f7fbff 100%); }
+.kids-header { background: linear-gradient(90deg, #ffcad4, #f3d5b5, #c5e7ff); border-bottom: none; }
+.kids-header .header-inner { display:flex; align-items:center; justify-content:space-between; max-width: 960px; margin: 0 auto; }
+.kids-header h1 { margin:0; font-size: 1.6rem; color:#3b3b3b; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }
+
+.banner { max-width: 960px; margin: 0.5rem auto 1rem; display:flex; gap: 16px; align-items:center; background:#fff; border-radius: 16px; padding: 1rem; border: 2px dashed #ffd36b; }
+.mascot { width: 140px; height: 140px; border-radius: 16px; background: radial-gradient(circle at 50% 35%, #ffd36b 40px, #fff 41px), linear-gradient(#ffeff2,#ffffff); border: 3px solid #ff8aa0; position: relative; }
+.mascot::before { content:""; position:absolute; left: 34px; top: 48px; width: 20px; height: 20px; background:#333; border-radius:50%; box-shadow: 52px 0 0 #333; }
+.mascot::after { content:""; position:absolute; left: 40px; top: 88px; width: 60px; height: 10px; background:#e24a68; border-radius: 6px; }
+.banner-text h2 { margin: 0.2rem 0; font-size: 1.5rem; color:#333; }
+.banner .sub { color:#666; }
+.pill { display:inline-block; background:#f0f7ff; border:1px solid #cde3ff; color:#246; padding: 4px 10px; border-radius: 999px; }
+.pill.accent { background:#fff4d6; border-color:#ffd36b; color:#7a4b00; }
+.section-title { font-size: 1.3rem; color:#333; max-width:960px; margin: 0 auto 0.5rem; }
+
+.cards { max-width: 960px; margin: 0 auto; }
+.kids-card { border-color: #fde2e4; background: linear-gradient(180deg, #fff, #fffdf8); }
+.kids-card .card-top { display:flex; align-items:center; gap: 10px; }
+.kids-card .icon { width: 40px; height: 40px; border-radius: 50%; background:#ffe8a3; display:flex; align-items:center; justify-content:center; font-size: 1.2rem; border:2px solid #ffd36b; }
+.kids-card .card-title { margin: 0; font-size: 1.2rem; }
+.kids-card .muted { color:#666; margin: 0.25rem 0; }
+.kids-card .actions { display:flex; align-items:center; gap: 10px; margin-top: 0.5rem; }
+.kids-card .cta { background:#49c36b; }
+.kids-card .cta:hover { background:#36a357; }
+.kids-card .link { color:#e24a68; text-decoration:none; }
+.kids-card .link:hover { text-decoration:underline; }

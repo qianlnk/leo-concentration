@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>火眼金睛 - {{.TrainingName}}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    .panel { text-align:center; padding: 1rem; }
+    .big { font-size: 1.6rem; font-weight: 800; color: #ff6b35; margin-bottom: 0.5rem; }
+    .instruction { color: #666; margin-bottom: 1rem; font-size: 0.95rem; }
+    .stats { margin: 1rem 0; color:#555; font-size: 0.9rem; }
+    .controls { display:flex; gap:8px; justify-content:center; align-items:center; margin: 1rem 0; flex-wrap: wrap; }
+
+    /* 任务提示区域 */
+    .task-prompt {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1.5rem;
+      border-radius: 16px;
+      margin: 1.5rem auto;
+      max-width: 500px;
+      box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+    }
+    .task-prompt .target {
+      font-size: 3rem;
+      margin: 0.5rem 0;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    }
+    .task-prompt .count {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+
+    /* 物品容器 - 随机散布 */
+    .items-container {
+      position: relative;
+      width: 90%;
+      max-width: 1000px;
+      height: 600px;
+      margin: 1.5rem auto;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+    .item-cell {
+      position: absolute;
+      font-size: 2.5rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+      filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.1));
+    }
+    .item-cell:hover {
+      transform: scale(1.2);
+      filter: drop-shadow(3px 3px 6px rgba(0,0,0,0.2));
+    }
+    .item-cell.found {
+      animation: foundAnim 0.4s ease;
+      opacity: 0.3;
+      pointer-events: none;
+    }
+    .item-cell.wrong {
+      animation: wrongShake 0.3s ease;
+    }
+    @keyframes foundAnim {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.4) rotate(15deg); }
+    }
+    @keyframes wrongShake {
+      0%, 100% { transform: translateX(0) rotate(0deg); }
+      25% { transform: translateX(-10px) rotate(-5deg); }
+      75% { transform: translateX(10px) rotate(5deg); }
+    }
+
+    /* 消息提示 */
+    #msg {
+      margin-top: 1rem;
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #28a745;
+      min-height: 1.5rem;
+    }
+    #msg.error {
+      color: #dc3545;
+    }
+
+    /* 难度按钮 */
+    .level-btn {
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      border: 2px solid #667eea;
+      background: white;
+      color: #667eea;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .level-btn:hover {
+      background: #667eea;
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+    }
+    .level-btn.active {
+      background: #667eea;
+      color: white;
+    }
+  </style>
+  <script>
+    let sessionId = {{.ID}};
+    let level = 'medium'; // 默认中等难度
+    let startTs = 0;
+    let successCount = 0;
+    let errorCount = 0;
+    let foundCount = 0; // 已找到的目标物品数量
+    let targetCount = 0; // 需要找到的目标物品总数
+    let targetEmoji = ''; // 当前目标物品
+    let targetName = ''; // 目标物品名称
+    let items = []; // 所有物品数据
+
+    // 物品库：emoji 和名称
+    const itemsLibrary = [
+      { emoji: '🧦', name: '袜子' },
+      { emoji: '👟', name: '鞋子' },
+      { emoji: '🎩', name: '帽子' },
+      { emoji: '👕', name: '衣服' },
+      { emoji: '👔', name: '领带' },
+      { emoji: '🍎', name: '苹果' },
+      { emoji: '🍌', name: '香蕉' },
+      { emoji: '🍇', name: '葡萄' },
+      { emoji: '🍓', name: '草莓' },
+      { emoji: '🍊', name: '橙子' },
+      { emoji: '⚽', name: '足球' },
+      { emoji: '🏀', name: '篮球' },
+      { emoji: '🎾', name: '网球' },
+      { emoji: '🏐', name: '排球' },
+      { emoji: '⚾', name: '棒球' },
+      { emoji: '🚗', name: '汽车' },
+      { emoji: '🚕', name: '出租车' },
+      { emoji: '🚙', name: '越野车' },
+      { emoji: '🚌', name: '公交车' },
+      { emoji: '🚑', name: '救护车' },
+      { emoji: '🐶', name: '小狗' },
+      { emoji: '🐱', name: '小猫' },
+      { emoji: '🐭', name: '老鼠' },
+      { emoji: '🐹', name: '仓鼠' },
+      { emoji: '🐰', name: '兔子' },
+      { emoji: '🌸', name: '樱花' },
+      { emoji: '🌺', name: '红花' },
+      { emoji: '🌻', name: '向日葵' },
+      { emoji: '🌹', name: '玫瑰' },
+      { emoji: '🌷', name: '郁金香' },
+      { emoji: '⭐', name: '星星' },
+      { emoji: '🌙', name: '月亮' },
+      { emoji: '☀️', name: '太阳' },
+      { emoji: '☁️', name: '云朵' },
+      { emoji: '🌈', name: '彩虹' }
+    ];
+
+    // 难度配置
+    const levelConfigs = {
+      easy: { totalItems: 30, targetCount: 3, distractorTypes: 5 },
+      medium: { totalItems: 50, targetCount: 4, distractorTypes: 8 },
+      hard: { totalItems: 80, targetCount: 5, distractorTypes: 12 }
+    };
+
+    // 初始化游戏
+    function build() {
+      const config = levelConfigs[level];
+      const container = document.getElementById('grid');
+      container.innerHTML = '';
+
+      items = [];
+      successCount = 0;
+      errorCount = 0;
+      foundCount = 0;
+      targetCount = config.targetCount;
+
+      // 随机选择目标物品
+      const targetItem = itemsLibrary[Math.floor(Math.random() * itemsLibrary.length)];
+      targetEmoji = targetItem.emoji;
+      targetName = targetItem.name;
+
+      // 随机选择干扰物品（不包含目标物品）
+      const distractorItems = itemsLibrary
+        .filter(item => item.emoji !== targetEmoji)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, config.distractorTypes);
+
+      // 生成物品数组：目标物品 + 干扰物品
+      const itemsToPlace = [];
+      // 添加目标物品
+      for (let i = 0; i < config.targetCount; i++) {
+        itemsToPlace.push({ ...targetItem, isTarget: true });
+      }
+      // 添加干扰物品，填满剩余位置
+      const remainingSlots = config.totalItems - config.targetCount;
+      for (let i = 0; i < remainingSlots; i++) {
+        const distractor = distractorItems[Math.floor(Math.random() * distractorItems.length)];
+        itemsToPlace.push({ ...distractor, isTarget: false });
+      }
+
+      // 随机打乱物品位置
+      itemsToPlace.sort(() => Math.random() - 0.5);
+
+      // 用于记录已占用的位置，避免重叠
+      const occupiedPositions = [];
+      const minDistance = 8; // 最小间距（百分比单位，相对于容器宽度）
+
+      // 创建物品并随机放置
+      itemsToPlace.forEach((item, index) => {
+        const cell = document.createElement('div');
+        cell.className = 'item-cell';
+        cell.textContent = item.emoji;
+        cell.dataset.index = index;
+        cell.dataset.isTarget = item.isTarget;
+        cell.onclick = () => clickItem(index);
+
+        // 随机位置，确保不重叠
+        let x, y, attempts = 0;
+        let validPosition = false;
+
+        while (!validPosition && attempts < 200) {
+          x = Math.random() * 90; // 0-90% (留出物品大小的空间)
+          y = Math.random() * 90;
+
+          // 检查是否与已有物品重叠
+          validPosition = true;
+          for (const pos of occupiedPositions) {
+            const distance = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(y - pos.y, 2));
+            if (distance < minDistance) {
+              validPosition = false;
+              break;
+            }
+          }
+          attempts++;
+        }
+
+        // 如果找不到不重叠的位置，尝试在边缘区域放置
+        if (!validPosition) {
+          x = Math.random() * 90;
+          y = Math.random() * 90;
+        }
+
+        occupiedPositions.push({ x, y });
+
+        cell.style.left = x + '%';
+        cell.style.top = y + '%';
+
+        container.appendChild(cell);
+        items.push({
+          emoji: item.emoji,
+          name: item.name,
+          isTarget: item.isTarget,
+          element: cell,
+          found: false
+        });
+      });
+
+      // 更新任务提示
+      document.getElementById('targetEmoji').textContent = targetEmoji;
+      document.getElementById('targetName').textContent = targetName;
+      document.getElementById('targetCount').textContent = targetCount;
+
+      updatePanel();
+      startTimer();
+      document.getElementById('msg').textContent = '';
+      document.getElementById('msg').classList.remove('error');
+    }
+
+    // 点击物品
+    function clickItem(index) {
+      const item = items[index];
+      if (item.found) return; // 已找到的不能再点
+
+      if (item.isTarget) {
+        // 找到目标物品
+        item.element.classList.add('found');
+        item.found = true;
+        foundCount++;
+        successCount++;
+
+        postProgress();
+        updatePanel();
+
+        // 检查是否全部找到
+        if (foundCount === targetCount) {
+          finish();
+        } else {
+          showMessage(`太棒了！还需要找到 ${targetCount - foundCount} 个`, false);
+        }
+      } else {
+        // 点错了
+        item.element.classList.add('wrong');
+        errorCount++;
+
+        postProgress();
+        updatePanel();
+        showMessage('不对哦，再仔细看看！', true);
+
+        setTimeout(() => {
+          item.element.classList.remove('wrong');
+        }, 300);
+      }
+    }
+
+    // 显示消息
+    function showMessage(text, isError) {
+      const msgEl = document.getElementById('msg');
+      msgEl.textContent = text;
+      if (isError) {
+        msgEl.classList.add('error');
+      } else {
+        msgEl.classList.remove('error');
+      }
+    }
+
+    // 更新面板显示
+    function updatePanel() {
+      document.getElementById('found').textContent = foundCount;
+      document.getElementById('total').textContent = targetCount;
+      document.getElementById('err').textContent = errorCount;
+    }
+
+    // 开始计时
+    function startTimer() {
+      startTs = Date.now();
+      tick();
+      clearInterval(window._t);
+      window._t = setInterval(tick, 500);
+    }
+
+    // 更新计时
+    function tick() {
+      const secs = Math.floor((Date.now() - startTs) / 1000);
+      document.getElementById('elapsed').textContent = secs + ' 秒';
+    }
+
+    // 提交进度
+    function postProgress() {
+      const form = new URLSearchParams();
+      form.set('id', sessionId);
+      form.set('success', successCount);
+      form.set('errors', errorCount);
+      fetch('/api/session/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form
+      });
+    }
+
+    // 游戏完成
+    function finish() {
+      clearInterval(window._t);
+      const secs = Math.floor((Date.now() - startTs) / 1000);
+      const accuracy = Math.round((successCount / (successCount + errorCount)) * 100);
+      showMessage(`恭喜！全部找到了！用时 ${secs} 秒，正确率 ${accuracy}%`, false);
+
+      const levelName = { easy: '简单', medium: '中等', hard: '困难' }[level];
+      const note = `火眼金睛-${levelName} 找到${targetCount}个${targetName} 用时${secs}秒 正确率${accuracy}%`;
+      const form = new URLSearchParams();
+      form.set('id', sessionId);
+      form.set('success', successCount);
+      form.set('errors', errorCount);
+      form.set('notes', note);
+      form.set('append', '1');
+      fetch('/api/session/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form
+      });
+    }
+
+    // 设置难度
+    function setLevel(newLevel) {
+      level = newLevel;
+
+      // 更新按钮状态
+      document.querySelectorAll('.level-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+
+      build();
+    }
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      // 默认激活中等难度按钮
+      document.querySelector('.level-btn[onclick*="medium"]').classList.add('active');
+      build();
+    });
+  </script>
+</head>
+<body>
+  <header>
+    <h1>火眼金睛 👀</h1>
+    <nav>
+      <a href="/">首页</a>
+    </nav>
+  </header>
+  <section class="panel">
+    <p class="big">快速找出所有目标物品！</p>
+    <p class="instruction">在众多物品中找出指定的目标，训练你的观察力和专注力</p>
+
+    <!-- 任务提示 -->
+    <div class="task-prompt">
+      <div style="font-size: 1.2rem;">请找出：</div>
+      <div class="target">
+        <span id="targetEmoji">🧦</span>
+        <span id="targetName" style="font-size: 1.8rem; margin-left: 0.5rem;">袜子</span>
+      </div>
+      <div class="count">
+        需要找到 <span id="targetCount">3</span> 个
+      </div>
+    </div>
+
+    <p class="stats">
+      计时：<strong id="elapsed">0 秒</strong> ｜
+      已找到：<strong id="found">0</strong>/<strong id="total">3</strong> ｜
+      错误：<strong id="err">0</strong>
+    </p>
+
+    <div class="controls">
+      <span style="font-weight: 600;">选择难度：</span>
+      <button class="level-btn" onclick="setLevel('easy')">简单 (30个)</button>
+      <button class="level-btn" onclick="setLevel('medium')">中等 (50个)</button>
+      <button class="level-btn" onclick="setLevel('hard')">困难 (80个)</button>
+    </div>
+
+    <div id="grid" class="items-container"></div>
+
+    <p id="msg"></p>
+
+    <div style="margin-top:1.5rem;">
+      <button onclick="build()" style="background:#667eea; margin-right: 0.5rem;">重新开始</button>
+      <form action="/session/finish" method="post" style="display:inline">
+        <input type="hidden" name="id" value="{{.ID}}" />
+        <button type="submit" style="background:#4ab3e2">结束训练</button>
+      </form>
+    </div>
+  </section>
+</body>
+</html>

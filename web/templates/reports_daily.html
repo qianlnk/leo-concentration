@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>每日训练成果</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    canvas { max-width: 800px; height: 300px; border: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>每日训练成果</h1>
+    <nav>
+      <a href="/">首页</a>
+      <a href="/trainings">训练项目</a>
+    </nav>
+  </header>
+
+  <section>
+    <h2>最近30天汇总</h2>
+    <table>
+      <thead><tr><th>日期</th><th>训练分钟</th><th>训练次数</th></tr></thead>
+      <tbody>
+        {{range .Days}}
+          <tr><td>{{.Day}}</td><td>{{.TotalMin}}</td><td>{{.Sessions}}</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>训练耗时曲线</h2>
+    <canvas id="chart"></canvas>
+    <script>
+      // Extract data from table
+      const rows = Array.from(document.querySelectorAll('tbody tr'));
+      const labels = rows.map(r => r.children[0].textContent).reverse();
+      const mins = rows.map(r => parseInt(r.children[1].textContent||'0')).reverse();
+      const canvas = document.getElementById('chart');
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width = Math.min(800, window.innerWidth-40);
+      const H = canvas.height = 300;
+      const max = Math.max(10, ...mins);
+      const pad = 30;
+      ctx.clearRect(0,0,W,H);
+      // axes
+      ctx.strokeStyle = '#999';
+      ctx.beginPath();
+      ctx.moveTo(pad, pad);
+      ctx.lineTo(pad, H-pad);
+      ctx.lineTo(W-pad, H-pad);
+      ctx.stroke();
+      // plot line
+      ctx.strokeStyle = '#4a90e2';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      labels.forEach((_, i) => {
+        const x = pad + i * ((W-2*pad)/Math.max(1, labels.length-1));
+        const y = H - pad - (mins[i]/max)*(H-2*pad);
+        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+      // draw points
+      ctx.fillStyle = '#e24a68';
+      labels.forEach((lab, i) => {
+        const x = pad + i * ((W-2*pad)/Math.max(1, labels.length-1));
+        const y = H - pad - (mins[i]/max)*(H-2*pad);
+        ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+      });
+      // y ticks
+      ctx.fillStyle = '#333';
+      ctx.font = '12px sans-serif';
+      for (let t=0;t<=max;t+=Math.ceil(max/5)) {
+        const y = H - pad - (t/max)*(H-2*pad);
+        ctx.fillText(t+'m', 2, y+4);
+        ctx.strokeStyle = '#eee'; ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(W-pad,y); ctx.stroke();
+      }
+    </script>
+  </section>
+</body>
+</html>

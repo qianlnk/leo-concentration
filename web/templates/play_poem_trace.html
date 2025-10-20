@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>唐诗迷踪 - {{.TrainingName}}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    .panel { text-align:center; }
+    .big { font-size: 1.5rem; font-weight: 800; color: #4a90e2; }
+    .board { display:grid; gap:10px; justify-content:center; margin-top:1rem; }
+    .cell { display:flex; align-items:center; justify-content:center; font-size:1.4rem; font-weight:700; border-radius:12px; cursor:pointer; background:#fff8d6; border:2px solid #f2ae2e; width:56px; height:56px; box-sizing:border-box; }
+    .cell.ok { background:#c8f7c5; border-color:#49c36b; }
+    .cell.bad { background:#ffd6d6; border-color:#e24a68; }
+    .controls { display:flex; gap:8px; justify-content:center; align-items:center; margin-top:8px; flex-wrap:wrap; }
+    .stats { color:#555; margin-top: 6px; }
+  </style>
+  <script>
+    let sessionId = {{.ID}};
+    // Poems dataset
+    const poemsFive = [
+      {title:'静夜思', author:'李白', chars:'床前明月光疑是地上霜举头望明月低头思故乡'},
+      {title:'春晓', author:'孟浩然', chars:'春眠不觉晓处处闻啼鸟夜来风雨声花落知多少'},
+      {title:'望庐山瀑布', author:'李白', chars:'日照香炉生紫烟遥看瀑布挂前川飞流直下三千尺疑是银河落九天'}
+    ];
+    const poemsSeven = [
+      {title:'春望', author:'杜甫', chars:'国破山河在城春草木深感时花溅泪恨别鸟惊心烽火连三月家书抵万金白头搔更短浑欲不胜簪'},
+      {title:'登高(前四联)', author:'杜甫', chars:'风急天高猿啸哀渚清沙白鸟飞回无边落木萧萧下不尽长江滚滚来'}
+    ];
+    let mode = 'five'; // 'five' / 'seven'
+    let currentPoem = null;
+    let order = [];
+    let target = '';
+    let next = 0;
+    let success=0, errors=0;
+    let startTs=0, timerId;
+
+    function pickPoem(){
+      const list = mode==='five'?poemsFive:poemsSeven;
+      const sel = document.getElementById('poemSel').value;
+      if(sel==='random') {
+        currentPoem = list[Math.floor(Math.random()*list.length)];
+      } else {
+        currentPoem = list.find(p=>p.title===sel) || list[0];
+      }
+      build();
+    }
+    function build(){
+      target = currentPoem.chars.replace(/[^\u4e00-\u9fa5]/g,'');
+      const chars = target.split('');
+      const board = document.getElementById('board');
+      board.innerHTML='';
+      const grid = gridSize(chars.length);
+      board.style.gridTemplateColumns = `repeat(${grid.cols}, ${cellSize(grid)}px)`;
+      order = chars.slice(); shuffle(order);
+      order.forEach(ch=>{
+        const d=document.createElement('div'); d.className='cell'; d.textContent=ch;
+        d.style.width = d.style.height = `${cellSize(grid)}px`;
+        d.onclick=()=>clickCell(d, ch);
+        board.appendChild(d);
+      });
+      next = 0; success=0; errors=0; updatePanel(); startTimer();
+      document.getElementById('poemTitle').textContent = currentPoem.title + '（' + (mode==='five'?'五言绝句':'七言律诗') + '）';
+    }
+    function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } }
+    function gridSize(n){
+      // try to make near-square grid
+      let cols = Math.ceil(Math.sqrt(n));
+      let rows = Math.ceil(n/cols);
+      return {rows, cols};
+    }
+    function cellSize(grid){
+      const maxW = Math.min(800, window.innerWidth-60);
+      const size = Math.floor((maxW - (grid.cols-1)*10) / grid.cols);
+      return Math.max(40, Math.min(80, size));
+    }
+    function clickCell(el, ch){
+      const expect = target[next];
+      if(ch===expect){
+        el.classList.add('ok');
+        success++; next++; postProgress(); updatePanel();
+        if(next>=target.length){ finish(); }
+      } else {
+        errors++; el.classList.add('bad'); setTimeout(()=>{ el.classList.remove('bad'); }, 250);
+        postProgress(); updatePanel();
+      }
+    }
+    function updatePanel(){
+      document.getElementById('nextChar').textContent = target[next] || '完成';
+      document.getElementById('succ').textContent = success;
+      document.getElementById('err').textContent = errors;
+    }
+    function startTimer(){ startTs=Date.now(); clearInterval(timerId); timerId=setInterval(()=>{
+      const secs = Math.floor((Date.now()-startTs)/1000);
+      document.getElementById('elapsed').textContent = secs+' 秒';
+    }, 500); }
+    function postProgress(){ const form = new URLSearchParams(); form.set('id', sessionId); form.set('success', success); form.set('errors', errors); fetch('/api/session/update', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form}); }
+    function finish(){ clearInterval(timerId); const secs = Math.floor((Date.now()-startTs)/1000);
+      document.getElementById('msg').textContent = '全部字按顺序完成，用时 '+secs+' 秒';
+      const note = `唐诗迷踪 ${currentPoem.title} ${mode==='five'?'五言绝句':'七言律诗'} 用时 ${secs}s`;
+      const form = new URLSearchParams(); form.set('id', sessionId); form.set('success', success); form.set('errors', errors); form.set('notes', note); form.set('append','1');
+      fetch('/api/session/update', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form}); }
+    function changeMode(m){ mode=m; populatePoemSelect(); pickPoem(); }
+    function populatePoemSelect(){
+      const list = mode==='five'?poemsFive:poemsSeven;
+      const sel = document.getElementById('poemSel'); sel.innerHTML='';
+      const optR = document.createElement('option'); optR.value='random'; optR.textContent='随机'; sel.appendChild(optR);
+      list.forEach(p=>{ const o=document.createElement('option'); o.value=p.title; o.textContent=p.title+'（'+p.author+'）'; sel.appendChild(o); });
+    }
+    window.addEventListener('resize', ()=>{ if(currentPoem){ build(); } });
+    document.addEventListener('DOMContentLoaded', ()=>{ populatePoemSelect(); pickPoem(); });
+  </script>
+</head>
+<body>
+  <header>
+    <h1>唐诗迷踪</h1>
+    <nav>
+      <a href="/">首页</a>
+    </nav>
+  </header>
+  <section class="panel">
+    <p class="big">按顺序点击诗句中的字：下一个是 <strong id="nextChar">字</strong></p>
+    <p>模式：
+      <button onclick="changeMode('five')">五言绝句</button>
+      <button onclick="changeMode('seven')">七言律诗</button>
+      选择诗：<select id="poemSel" onchange="pickPoem()"></select>
+    </p>
+    <p>当前诗：<strong id="poemTitle">—</strong> ｜ 计时：<strong id="elapsed">0 秒</strong></p>
+    <p>完成次数：<strong id="succ">0</strong>，错误次数：<strong id="err">0</strong></p>
+    <div id="board" class="board" aria-label="poem grid"></div>
+    <div style="margin-top:1rem">
+      <form action="/session/finish" method="post" style="display:inline">
+        <input type="hidden" name="id" value="{{.ID}}" />
+        <button type="submit" style="background:#4ab3e2">结束训练</button>
+      </form>
+    </div>
+    <p id="msg" class="stats"></p>
+  </section>
+</body>
+</html>
+

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>数字迷踪 - {{.TrainingName}}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    .board { display:grid; gap:10px; justify-content:center; margin-top:1rem; }
+    .cell { display:flex; align-items:center; justify-content:center; font-size:1.2rem; font-weight:700; border-radius:12px; cursor:pointer; background:#fff8d6; border:2px solid #f2ae2e; }
+    .cell.ok { background:#c8f7c5; border-color:#49c36b; }
+    .cell.bad { background:#ffd6d6; border-color:#e24a68; }
+    .panel { text-align:center; }
+    .big { font-size: 1.5rem; font-weight: 800; color: #4a90e2; }
+    .controls { display:flex; gap:8px; justify-content:center; align-items:center; margin-top:8px; }
+  </style>
+  <script>
+    let sessionId = {{.ID}};
+    let order = [];
+    let next = 1;
+    let success=0, errors=0;
+    let grid = 3; // start from 3x3 per level
+    let startTs = 0;
+    let timerId;
+    function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } }
+    function build(){
+      const count = grid*grid;
+      order = Array.from({length:count}, (_,i)=>i+1);
+      shuffle(order);
+      const board = document.getElementById('board');
+      board.innerHTML='';
+      board.style.gridTemplateColumns = `repeat(${grid}, ${cellSize()}px)`;
+      order.forEach(n=>{
+        const d=document.createElement('div'); d.className='cell'; d.textContent=n;
+        d.style.width = d.style.height = `${cellSize()}px`;
+        d.onclick=()=>clickCell(d, n);
+        board.appendChild(d);
+      });
+      next = 1;
+      updatePanel();
+      startTimer();
+    }
+    function updatePanel(){
+      document.getElementById('next').textContent = next;
+      document.getElementById('succ').textContent = success;
+      document.getElementById('err').textContent = errors;
+      document.getElementById('level').textContent = grid+'×'+grid;
+    }
+    function postProgress(){
+      const form = new URLSearchParams();
+      form.set('id', sessionId);
+      form.set('success', success);
+      form.set('errors', errors);
+      fetch('/api/session/update', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form});
+    }
+    function clickCell(el, n){
+      if(n===next){
+        el.classList.add('ok');
+        success++;
+        next++;
+        postProgress();
+        updatePanel();
+        if(next>(grid*grid)){
+          const secs = Math.floor((Date.now()-startTs)/1000);
+          setTimeout(()=>{
+            alert('太棒了！等级 '+grid+'×'+grid+' 完成，用时 '+secs+' 秒！');
+            logLevelTime(secs);
+            document.getElementById('upgrade').disabled = (grid>=5);
+          }, 60);
+        }
+      } else {
+        errors++;
+        el.classList.add('bad');
+        setTimeout(()=>{ el.classList.remove('bad'); }, 300);
+        postProgress();
+        updatePanel();
+      }
+    }
+    function cellSize(){ return grid===3?80:(grid===4?70:60); }
+    function startTimer(){
+      startTs = Date.now();
+      clearInterval(timerId);
+      timerId = setInterval(()=>{
+        const secs = Math.floor((Date.now()-startTs)/1000);
+        document.getElementById('elapsed').textContent = secs+' 秒';
+      }, 500);
+    }
+    function logLevelTime(secs){
+      const note = `数字迷踪 ${grid}x${grid} 用时 ${secs}s`;
+      const form = new URLSearchParams();
+      form.set('id', sessionId);
+      form.set('success', success);
+      form.set('errors', errors);
+      form.set('notes', note);
+      form.set('append', '1');
+      fetch('/api/session/update', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form});
+    }
+    function upgrade(){ if(grid<5){ grid++; build(); } }
+    function setLevel(n){ grid=n; build(); }
+    document.addEventListener('DOMContentLoaded', ()=>{ build(); });
+  </script>
+</head>
+<body>
+  <header>
+    <h1>数字迷踪</h1>
+    <nav>
+      <a href="/">首页</a>
+    </nav>
+  </header>
+  <section class="panel">
+    <p class="big">等级：<strong id="level">3×3</strong> ｜ 计时：<strong id="elapsed">0 秒</strong></p>
+    <p>请按顺序点击数字：下一个是 <strong id="next">1</strong></p>
+    <p>完成次数：<strong id="succ">0</strong>，错误次数：<strong id="err">0</strong></p>
+    <div class="controls">
+      <span>选择等级：</span>
+      <button onclick="setLevel(3)">3×3</button>
+      <button onclick="setLevel(4)">4×4</button>
+      <button onclick="setLevel(5)">5×5</button>
+      <button id="upgrade" onclick="upgrade()" title="完成当前等级后可继续升级">升级</button>
+    </div>
+    <div id="board" class="board" aria-label="number grid"></div>
+    <div style="margin-top:1rem">
+      <form action="/session/finish" method="post" style="display:inline">
+        <input type="hidden" name="id" value="{{.ID}}" />
+        <button type="submit" style="background:#4ab3e2">结束训练</button>
+      </form>
+    </div>
+  </section>
+</body>
+</html>

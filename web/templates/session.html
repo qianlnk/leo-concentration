@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>训练中 - {{.TrainingName}}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <script>
+    let startTs = Date.now();
+    let timerId;
+    function tick() {
+      const sec = Math.floor((Date.now() - startTs)/1000);
+      document.getElementById('elapsed').textContent = sec + ' 秒';
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      timerId = setInterval(tick, 500);
+      tick();
+    });
+  </script>
+  <style>.counter { font-size: 1.5em; font-weight: bold; }</style>
+  </head>
+<body>
+  <header>
+    <h1>训练中：{{.TrainingName}}</h1>
+    <nav>
+      <a href="/">首页</a>
+    </nav>
+  </header>
+  <section>
+    <p>开始时间：{{.Started}}</p>
+    <p>已用时：<span id="elapsed" class="counter">0 秒</span></p>
+    <form action="/session/update" method="post">
+      <input type="hidden" name="id" value="{{.ID}}" />
+      <label>完成次数 <input type="number" name="success" value="{{.Success}}" min="0" /></label>
+      <label>错误次数 <input type="number" name="errors" value="{{.Errors}}" min="0" /></label>
+      <label>备注 <textarea name="notes" rows="2"></textarea></label>
+      <button type="submit">保存进度</button>
+    </form>
+    <form action="/session/finish" method="post" style="margin-top: 1rem;">
+      <input type="hidden" name="id" value="{{.ID}}" />
+      <button type="submit">结束训练并保存</button>
+    </form>
+  </section>
+</body>
+</html>

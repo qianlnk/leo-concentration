@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>颜色对对碰 - {{.TrainingName}}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    .panel { text-align:center; padding: 1rem; }
+    .big { font-size: 1.6rem; font-weight: 800; color: #4a90e2; margin-bottom: 0.5rem; }
+    .instruction { color: #666; margin-bottom: 1rem; font-size: 0.95rem; }
+    .stats { margin: 1rem 0; color:#555; font-size: 0.9rem; }
+    .controls { display:flex; gap:8px; justify-content:center; align-items:center; margin: 1rem 0; flex-wrap: wrap; }
+    .grid-container { display: inline-block; margin: 1.5rem auto; }
+    .color-grid {
+      display: grid;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    .color-cell {
+      width: 80px;
+      height: 80px;
+      border-radius: 12px;
+      background: #f8f8f8;
+      border: 3px solid #ddd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      font-weight: 700;
+      transition: all 0.2s ease;
+      box-sizing: border-box;
+    }
+    .color-cell.active {
+      border-color: #4a90e2;
+      background: #e3f2fd;
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(74,144,226,0.3);
+    }
+    .color-cell.wrong {
+      border-color: #f44336;
+      background: #ffebee;
+      animation: wrongAnim 0.3s ease;
+    }
+    .color-cell.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.1s ease; /* 快速淡出 */
+    }
+    @keyframes wrongAnim {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-8px); }
+      75% { transform: translateX(8px); }
+    }
+    .color-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+    .color-btn {
+      width: 100px;
+      height: 50px;
+      border-radius: 10px;
+      border: 3px solid #333;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: #fff;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    }
+    .color-btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .color-btn:active {
+      transform: scale(0.95);
+    }
+    #msg {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #4caf50;
+      min-height: 1.5rem;
+    }
+  </style>
+  <script>
+    let sessionId = {{.ID}};
+    let gridSize = 3; // 默认 3x3
+    let startTs = 0;
+    let successCount = 0;
+    let errorCount = 0;
+    let currentCellIndex = 0; // 当前选中的格子索引，从0开始自动顺序选择
+    let cells = []; // 存储所有格子的数据 {textColor: 'red', displayColor: 'blue', element: div, hidden: false}
+
+    // 颜色定义：文字和对应的颜色值
+    const colors = [
+      { name: '红色', value: '#e53935' },
+      { name: '蓝色', value: '#1e88e5' },
+      { name: '绿色', value: '#43a047' },
+      { name: '黄色', value: '#fdd835' },
+      { name: '紫色', value: '#8e24aa' },
+      { name: '橙色', value: '#fb8c00' }
+    ];
+
+    // 初始化游戏
+    function build() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      grid.style.gridTemplateColumns = `repeat(${gridSize}, 80px)`;
+
+      cells = [];
+      successCount = 0;
+      errorCount = 0;
+      currentCellIndex = 0;
+
+      // 生成格子数据
+      const totalCells = gridSize * gridSize;
+      for (let i = 0; i < totalCells; i++) {
+        // 随机选择文字内容（颜色名）
+        const textColor = colors[Math.floor(Math.random() * colors.length)];
+        // 随机选择文字颜色，确保与文字内容不一致
+        let displayColor;
+        do {
+          displayColor = colors[Math.floor(Math.random() * colors.length)];
+        } while (displayColor.name === textColor.name);
+
+        // 创建格子元素
+        const cell = document.createElement('div');
+        cell.className = 'color-cell';
+        cell.textContent = textColor.name;
+        cell.style.color = displayColor.value;
+        cell.dataset.index = i;
+
+        grid.appendChild(cell);
+        cells.push({
+          textColor: textColor.name,
+          textColorValue: textColor.value,
+          displayColor: displayColor.name,
+          displayColorValue: displayColor.value,
+          element: cell,
+          hidden: false
+        });
+      }
+
+      updatePanel();
+      startTimer();
+      document.getElementById('msg').textContent = '';
+
+      // 自动选中第一个格子
+      selectNextCell();
+    }
+
+    // 自动选择下一个格子（按顺序）
+    function selectNextCell() {
+      // 找到下一个未消除的格子
+      while (currentCellIndex < cells.length && cells[currentCellIndex].hidden) {
+        currentCellIndex++;
+      }
+
+      // 如果所有格子都已消除，游戏结束
+      if (currentCellIndex >= cells.length) {
+        return;
+      }
+
+      // 高亮当前格子
+      cells[currentCellIndex].element.classList.add('active');
+    }
+
+    // 点击颜色按钮
+    function clickColor(colorName) {
+      if (currentCellIndex >= cells.length) {
+        return; // 游戏已结束
+      }
+
+      const cell = cells[currentCellIndex];
+      if (cell.hidden) return;
+
+      // 判断是否正确：按字来选择（不是按字体颜色）
+      if (cell.textColor === colorName) {
+        // 正确 - 立即隐藏并进入下一个
+        cell.element.classList.remove('active');
+        cell.element.classList.add('hidden');
+        cell.hidden = true;
+        successCount++;
+        currentCellIndex++;
+
+        postProgress();
+        updatePanel();
+
+        // 检查是否全部完成
+        if (successCount === cells.length) {
+          finish();
+        } else {
+          // 立即选择下一个格子
+          selectNextCell();
+        }
+      } else {
+        // 错误 - 短暂抖动后继续
+        cell.element.classList.remove('active');
+        cell.element.classList.add('wrong');
+        errorCount++;
+        postProgress();
+        updatePanel();
+
+        setTimeout(() => {
+          cell.element.classList.remove('wrong');
+          cell.element.classList.add('active'); // 重新高亮当前格子
+        }, 300); // 缩短错误动画时间到300ms
+      }
+    }
+
+    // 更新面板显示
+    function updatePanel() {
+      document.getElementById('succ').textContent = successCount;
+      document.getElementById('err').textContent = errorCount;
+      const remaining = cells.length - successCount;
+      document.getElementById('remaining').textContent = remaining;
+    }
+
+    // 开始计时
+    function startTimer() {
+      startTs = Date.now();
+      tick();
+      clearInterval(window._t);
+      window._t = setInterval(tick, 500);
+    }
+
+    // 更新计时
+    function tick() {
+      const secs = Math.floor((Date.now() - startTs) / 1000);
+      document.getElementById('elapsed').textContent = secs + ' 秒';
+    }
+
+    // 提交进度
+    function postProgress() {
+      const form = new URLSearchParams();
+      form.set('id', sessionId);
+      form.set('success', successCount);
+      form.set('errors', errorCount);
+      fetch('/api/session/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form
+      });
+    }
+
+    // 游戏完成
+    function finish() {
+      clearInterval(window._t);
+      const secs = Math.floor((Date.now() - startTs) / 1000);
+      const accuracy = Math.round((successCount / (successCount + errorCount)) * 100);
+      document.getElementById('msg').textContent = `太棒了！全部完成，用时 ${secs} 秒，正确率 ${accuracy}%`;
+
+      const note = `颜色对对碰 ${gridSize}x${gridSize} 用时 ${secs}s 正确率 ${accuracy}%`;
+      const form = new URLSearchParams();
+      form.set('id', sessionId);
+      form.set('success', successCount);
+      form.set('errors', errorCount);
+      form.set('notes', note);
+      form.set('append', '1');
+      fetch('/api/session/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form
+      });
+    }
+
+    // 设置难度
+    function setLevel(size) {
+      gridSize = size;
+      build();
+    }
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      build();
+    });
+  </script>
+</head>
+<body>
+  <header>
+    <h1>颜色对对碰</h1>
+    <nav>
+      <a href="/">首页</a>
+    </nav>
+  </header>
+  <section class="panel">
+    <p class="big">根据文字内容选择颜色，而不是字体颜色！</p>
+    <p class="instruction">系统自动按顺序高亮格子，根据高亮格子的文字内容点击对应颜色按钮</p>
+
+    <p class="stats">
+      计时：<strong id="elapsed">0 秒</strong> ｜
+      已消除：<strong id="succ">0</strong> ｜
+      剩余：<strong id="remaining">9</strong> ｜
+      错误：<strong id="err">0</strong>
+    </p>
+
+    <div class="controls">
+      <span>选择难度：</span>
+      <button onclick="setLevel(3)">3×3</button>
+      <button onclick="setLevel(4)">4×4</button>
+      <button onclick="setLevel(5)">5×5</button>
+      <button onclick="setLevel(6)">6×6</button>
+    </div>
+
+    <div class="grid-container">
+      <div id="grid" class="color-grid"></div>
+    </div>
+
+    <div class="color-buttons">
+      <button class="color-btn" style="background-color: #e53935;" onclick="clickColor('红色')">红色</button>
+      <button class="color-btn" style="background-color: #1e88e5;" onclick="clickColor('蓝色')">蓝色</button>
+      <button class="color-btn" style="background-color: #43a047;" onclick="clickColor('绿色')">绿色</button>
+      <button class="color-btn" style="background-color: #fdd835;" onclick="clickColor('黄色')">黄色</button>
+      <button class="color-btn" style="background-color: #8e24aa;" onclick="clickColor('紫色')">紫色</button>
+      <button class="color-btn" style="background-color: #fb8c00;" onclick="clickColor('橙色')">橙色</button>
+    </div>
+
+    <p id="msg"></p>
+
+    <div style="margin-top:1.5rem">
+      <form action="/session/finish" method="post" style="display:inline">
+        <input type="hidden" name="id" value="{{.ID}}" />
+        <button type="submit" style="background:#4ab3e2">结束训练</button>
+      </form>
+    </div>
+  </section>
+</body>
+</html>

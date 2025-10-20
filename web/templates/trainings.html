@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>训练项目管理</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <header>
+    <h1>训练项目管理</h1>
+    <nav>
+      <a href="/">首页</a>
+      <a href="/reports/daily">每日成果</a>
+    </nav>
+  </header>
+
+  <section>
+    <h2>新增训练项目</h2>
+    <form action="/trainings" method="post">
+      <label>名称 <input type="text" name="name" required /></label>
+      <label>类别 <input type="text" name="category" /></label>
+      <label>建议时长(分钟) <input type="number" name="suggested" value="10" min="1" /></label>
+      <label>描述 <textarea name="description" rows="3"></textarea></label>
+      <button type="submit">保存</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>所有项目</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>名称</th><th>类别</th><th>建议</th><th>状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Trainings}}
+        <tr>
+          <td>{{.ID}}</td>
+          <td><a href="/training?id={{.ID}}">{{.Name}}</a></td>
+          <td>{{.Category}}</td>
+          <td>{{.Suggested}} 分</td>
+          <td>{{.Active}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </section>
+</body>
+</html>

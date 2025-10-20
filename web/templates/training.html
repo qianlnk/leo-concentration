@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>项目详情 - {{.Name}}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <header>
+    <h1>{{.Name}}</h1>
+    <nav>
+      <a href="/">首页</a>
+      <a href="/trainings">训练项目</a>
+    </nav>
+  </header>
+  <section>
+    <p>类别：{{.Category}}</p>
+    <p>建议时长：{{.Suggested}} 分钟</p>
+    <p>说明：{{.Description}}</p>
+    <form action="/session/start" method="post">
+      <input type="hidden" name="training_id" value="{{.ID}}" />
+      <button type="submit">开始训练</button>
+    </form>
+  </section>
+</body>
+</html>

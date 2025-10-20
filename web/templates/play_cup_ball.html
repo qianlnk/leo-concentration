@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>眼疾手快 - {{.TrainingName}}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    .panel { text-align:center; padding: 1rem; }
+    .big { font-size: 1.6rem; font-weight: 800; color: #ff6b6b; margin-bottom: 0.5rem; }
+    .instruction { color: #666; margin-bottom: 1rem; font-size: 0.95rem; }
+    .stats { margin: 1rem 0; color:#555; font-size: 0.9rem; }
+    .controls { display:flex; gap:8px; justify-content:center; align-items:center; margin: 1rem 0; flex-wrap: wrap; }
+
+    /* 游戏区域 */
+    .game-area {
+      width: 90%;
+      max-width: 700px;
+      margin: 2rem auto;
+      padding: 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
+    }
+
+    /* 杯子容器 */
+    .cups-container {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 60px;
+      min-height: 200px;
+      margin: 2rem 0;
+      position: relative;
+    }
+
+    /* 杯子样式 - 倒扣状态 */
+    .cup {
+      position: relative;
+      width: 100px;
+      height: 130px;
+      cursor: pointer;
+      transition: none; /* 移除transition，由JS控制 */
+    }
+
+    .cup:hover.clickable .cup-body {
+      transform: translateY(-10px);
+    }
+
+    /* 杯子主体（倒扣） */
+    .cup-body {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(0deg, #fff8e1 0%, #ffecb3 50%, #ffe082 100%);
+      border-radius: 20px 20px 0 0; /* 上面是圆角 */
+      border: 3px solid #f57c00;
+      border-bottom: none;
+      position: relative;
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-origin: bottom center;
+      box-shadow: 0 -4px 12px rgba(245, 124, 0, 0.2),
+                  inset 0 2px 10px rgba(255, 255, 255, 0.5);
+    }
+
+    /* 杯底（倒扣时在下面） */
+    .cup-bottom {
+      width: 110%;
+      height: 25px;
+      background: linear-gradient(0deg, #ef6c00 0%, #fb8c00 50%, #ffa726 100%);
+      border: 3px solid #e65100;
+      border-radius: 0 0 15px 15px;
+      position: absolute;
+      bottom: -15px;
+      left: -5%;
+      box-shadow: 0 4px 10px rgba(230, 81, 0, 0.3),
+                  inset 0 -2px 5px rgba(255, 255, 255, 0.3);
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* 球的样式 */
+    .ball {
+      position: absolute;
+      width: 35px;
+      height: 35px;
+      background: radial-gradient(circle at 35% 35%, #ff5252, #d32f2f 50%, #b71c1c);
+      border-radius: 50%;
+      bottom: -5px; /* 在杯子下面 */
+      left: 50%;
+      transform: translateX(-50%);
+      box-shadow: 0 5px 15px rgba(211, 47, 47, 0.5),
+                  inset -3px -3px 8px rgba(0,0,0,0.3),
+                  inset 3px 3px 8px rgba(255,255,255,0.2);
+      transition: none; /* 由JS控制 */
+      z-index: 1;
+    }
+
+    /* 杯子翻起状态 - 同步移动 */
+    .cup.lifted .cup-body,
+    .cup.lifted .cup-bottom {
+      transform: translateY(-50px);
+    }
+
+    .cup.lifted .ball {
+      opacity: 1;
+      z-index: 10;
+    }
+
+    /* 杯子盖住球时球不可见 */
+    .cup:not(.lifted) .ball {
+      opacity: 0;
+      z-index: 0;
+    }
+
+    /* 正确选择 */
+    .cup.correct .cup-body {
+      background: linear-gradient(0deg, #d4edda 0%, #c3e6cb 50%, #a8d5ba 100%);
+      border-color: #28a745;
+    }
+
+    .cup.correct .cup-bottom {
+      background: linear-gradient(0deg, #28a745 0%, #34ce57 50%, #5cd67b 100%);
+      border-color: #1e7e34;
+    }
+
+    /* 错误选择 */
+    .cup.wrong .cup-body {
+      background: linear-gradient(0deg, #f8d7da 0%, #f5c6cb 50%, #f1aeb5 100%);
+      border-color: #dc3545;
+      animation: wrongShake 0.4s ease;
+    }
+
+    .cup.wrong .cup-bottom {
+      background: linear-gradient(0deg, #dc3545 0%, #e4606d 50%, #ea868f 100%);
+      border-color: #bd2130;
+    }
+
+    /* 摇晃动画 - 只影响杯身，不影响位置 */
+    @keyframes wrongShake {
+      0%, 100% { transform: translateY(-50px) rotate(0deg); }
+      25% { transform: translateY(-50px) rotate(-3deg); }
+      75% { transform: translateY(-50px) rotate(3deg); }
+    }
+
+    /* 确保lifted状态的杯子被正确或错误样式修改后仍保持抬起 */
+    .cup.lifted.correct .cup-body,
+    .cup.lifted.correct .cup-bottom,
+    .cup.lifted.wrong .cup-body,
+    .cup.lifted.wrong .cup-bottom {
+      transform: translateY(-50px);
+    }
+
+    /* 状态消息 */
+    .status-box {
+      background: white;
+      padding: 1rem;
+      border-radius: 12px;
+      margin: 1rem 0;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+
+    .status-box:empty {
+      min-height: 0;
+      padding: 0;
+      margin: 0;
+    }
+
+    .status-message {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #495057;
+    }
+
+    .status-message:empty {
+      display: none;
+    }
+
+    .status-message.success {
+      color: #28a745;
+    }
+
+    .status-message.error {
+      color: #dc3545;
+    }
+
+    /* 按钮 */
+    .game-button {
+      padding: 0.8rem 2rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin: 0.5rem;
+    }
+
+    .game-button.primary {
+      background: #28a745;
+      color: white;
+    }
+
+    .game-button.primary:hover {
+      background: #218838;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    }
+
+    .game-button.secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .game-button.secondary:hover {
+      background: #5a6268;
+      transform: translateY(-2px);
+    }
+
+    .game-button:disabled {
+      background: #e9ecef;
+      color: #6c757d;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* 难度按钮 */
+    .difficulty-selector {
+      text-align: center;
+      margin: 1rem auto;
+    }
+
+    .difficulty-selector span {
+      font-size: 0.95rem;
+      color: #495057;
+      font-weight: 600;
+      margin-right: 10px;
+    }
+
+    .difficulty-buttons {
+      display: inline-flex;
+      gap: 10px;
+    }
+
+    .level-btn {
+      padding: 0.6rem 1.5rem;
+      border-radius: 8px;
+      border: 2px solid #667eea;
+      background: white;
+      color: #667eea;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .level-btn:hover {
+      background: #667eea;
+      color: white;
+      transform: translateY(-2px);
+    }
+
+    .level-btn.active {
+      background: #667eea;
+      color: white;
+      border-color: #667eea;
+    }
+  </style>
+  <script>
+    let sessionId = {{.ID}};
+    let level = 'medium'; // 默认中等难度
+    let startTs = 0;
+    let successCount = 0;
+    let errorCount = 0;
+    let currentRound = 0;
+    let totalRounds = 5; // 默认5轮
+
+    let ballPosition = 0; // 球的位置（0, 1, 2）
+    let isShuffling = false;
+    let gameStarted = false;
+    let roundStarted = false;
+
+    // 难度配置
+    const levelConfigs = {
+      easy: { cups: 3, swaps: 4, speed: 600, rounds: 5 },
+      medium: { cups: 4, swaps: 6, speed: 500, rounds: 5 },
+      hard: { cups: 5, swaps: 8, speed: 400, rounds: 5 }
+    };
+
+    // 初始化游戏
+    function initGame() {
+      const config = levelConfigs[level];
+      totalRounds = config.rounds;
+      currentRound = 0;
+      successCount = 0;
+      errorCount = 0;
+      gameStarted = false;
+      roundStarted = false;
+
+      // 动态生成杯子
+      const container = document.querySelector('.cups-container');
+      container.innerHTML = '';
+
+      for (let i = 0; i < config.cups; i++) {
+        const cup = document.createElement('div');
+        cup.className = 'cup';
+        cup.innerHTML = `
+          <div class="cup-body"></div>
+          <div class="cup-bottom"></div>
+          <div class="ball"></div>
+        `;
+        cup.addEventListener('click', () => clickCup(cup));
+        container.appendChild(cup);
+      }
+
+      updatePanel();
+      updateStatus(''); // 不显示初始提示
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('nextBtn').style.display = 'none';
+    }
+
+    // 开始新一轮
+    function startRound() {
+      if (isShuffling || roundStarted) return;
+
+      const config = levelConfigs[level];
+      roundStarted = true;
+      gameStarted = true;
+      currentRound++;
+
+      // 随机选择球的初始位置
+      ballPosition = Math.floor(Math.random() * config.cups);
+
+      // 重置所有杯子
+      document.querySelectorAll('.cup').forEach((cup, index) => {
+        cup.classList.remove('correct', 'wrong', 'clickable');
+        cup.classList.add('lifted');
+
+        // 只在球的位置显示球
+        const ball = cup.querySelector('.ball');
+        if (index === ballPosition) {
+          ball.style.display = 'block';
+        } else {
+          ball.style.display = 'none';
+        }
+      });
+
+      updatePanel();
+      updateStatus(`第 ${currentRound} 轮：记住球在哪个杯子下面...`);
+
+      // 2秒后盖上杯子并开始交换
+      setTimeout(() => {
+        document.querySelectorAll('.cup').forEach(cup => {
+          cup.classList.remove('lifted');
+        });
+
+        setTimeout(() => {
+          updateStatus('杯子开始交换，请仔细观察...');
+          startShuffling();
+        }, 500);
+      }, 2000);
+    }
+
+    // 开始交换杯子
+    async function startShuffling() {
+      isShuffling = true;
+      const config = levelConfigs[level];
+      const cups = document.querySelectorAll('.cup');
+
+      for (let i = 0; i < config.swaps; i++) {
+        // 随机选择两个不同的杯子
+        let pos1 = Math.floor(Math.random() * config.cups);
+        let pos2 = Math.floor(Math.random() * config.cups);
+        while (pos2 === pos1) {
+          pos2 = Math.floor(Math.random() * config.cups);
+        }
+
+        await swapCups(pos1, pos2);
+        await sleep(config.speed);
+      }
+
+      isShuffling = false;
+      updateStatus('交换完成！请选择球在哪个杯子下面');
+
+      // 允许点击
+      document.querySelectorAll('.cup').forEach(cup => {
+        cup.classList.add('clickable');
+      });
+    }
+
+    // 交换两个杯子（优化版 - 流畅动画）
+    async function swapCups(pos1, pos2) {
+      const container = document.querySelector('.cups-container');
+      const cups = Array.from(container.children);
+
+      const cup1 = cups[pos1];
+      const cup2 = cups[pos2];
+
+      // 计算移动距离（杯子宽度100px + 间距60px）
+      const distance = (pos2 - pos1) * 160;
+
+      // 使用CSS动画进行平滑移动
+      cup1.style.transition = 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)';
+      cup2.style.transition = 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)';
+
+      // 先上升
+      cup1.style.transform = 'translateY(-30px)';
+      cup2.style.transform = 'translateY(-30px)';
+      await sleep(100);
+
+      // 水平移动
+      cup1.style.transform = `translate(${distance}px, -30px)`;
+      cup2.style.transform = `translate(${-distance}px, -30px)`;
+      await sleep(350);
+
+      // 下降
+      cup1.style.transform = `translateX(${distance}px)`;
+      cup2.style.transform = `translateX(${-distance}px)`;
+      await sleep(100);
+
+      // 实际交换DOM顺序
+      // 获取所有杯子的最新顺序
+      const allCups = Array.from(container.children);
+
+      // 从DOM中移除两个杯子
+      cup1.remove();
+      cup2.remove();
+
+      // 重新插入到交换后的位置
+      // cup1应该插入到原来cup2的位置，cup2应该插入到原来cup1的位置
+      const cupsToInsert = [];
+
+      for (let i = 0; i < allCups.length; i++) {
+        if (i === pos1) {
+          cupsToInsert.push(cup2);
+        } else if (i === pos2) {
+          cupsToInsert.push(cup1);
+        } else if (allCups[i] !== cup1 && allCups[i] !== cup2) {
+          cupsToInsert.push(allCups[i]);
+        }
+      }
+
+      // 清空容器并按新顺序插入
+      container.innerHTML = '';
+      cupsToInsert.forEach(cup => container.appendChild(cup));
+
+      // 重置transform
+      cup1.style.transition = 'none';
+      cup2.style.transition = 'none';
+      cup1.style.transform = '';
+      cup2.style.transform = '';
+
+      // 强制浏览器重绘
+      void cup1.offsetHeight;
+      void cup2.offsetHeight;
+
+      // 球跟随杯子移动，不需要更新ballPosition变量
+      // 因为球是杯子的子元素，会自动跟随杯子移动
+    }
+
+    // 点击杯子
+    function clickCup(cupElement) {
+      if (isShuffling || !roundStarted || !cupElement.classList.contains('clickable')) return;
+
+      // 获取当前杯子的实际位置
+      const cups = Array.from(document.querySelectorAll('.cup'));
+      const clickedIndex = cups.indexOf(cupElement);
+
+      // 移除所有可点击状态
+      cups.forEach(cup => {
+        cup.classList.remove('clickable');
+      });
+
+      // 检查这个杯子是否有球
+      const hasBall = cupElement.querySelector('.ball').style.display !== 'none';
+
+      // 先翻起点击的杯子
+      cupElement.classList.add('lifted');
+
+      // 延迟添加正确/错误样式，让翻起动画先完成
+      setTimeout(() => {
+        if (hasBall) {
+          // 答对了
+          cupElement.classList.add('correct');
+          successCount++;
+          updateStatus('太棒了！答对了！🎉');
+          postProgress();
+
+          // 显示下一轮或完成按钮
+          if (currentRound < totalRounds) {
+            document.getElementById('nextBtn').style.display = 'inline-block';
+          } else {
+            finishGame();
+          }
+        } else {
+          // 答错了
+          cupElement.classList.add('wrong');
+          errorCount++;
+
+          // 找到有球的杯子并翻起
+          const correctCup = cups.find(cup => cup.querySelector('.ball').style.display !== 'none');
+          const correctIndex = cups.indexOf(correctCup);
+
+          updateStatus(`很遗憾，答错了！正确答案是第 ${correctIndex + 1} 个杯子`);
+
+          // 延迟翻起正确的杯子
+          setTimeout(() => {
+            correctCup.classList.add('lifted');
+            setTimeout(() => {
+              correctCup.classList.add('correct');
+            }, 400);
+          }, 300);
+
+          postProgress();
+
+          // 显示下一轮或完成按钮
+          setTimeout(() => {
+            if (currentRound < totalRounds) {
+              document.getElementById('nextBtn').style.display = 'inline-block';
+            } else {
+              finishGame();
+            }
+          }, 1500);
+        }
+      }, 400); // 等待翻起动画完成（0.4s）
+
+      roundStarted = false;
+      updatePanel();
+    }
+
+    // 下一轮
+    function nextRound() {
+      document.getElementById('nextBtn').style.display = 'none';
+      startRound();
+    }
+
+    // 完成游戏
+    function finishGame() {
+      clearInterval(window._t);
+      const secs = Math.floor((Date.now() - startTs) / 1000);
+      const accuracy = Math.round((successCount / totalRounds) * 100);
+      updateStatus(`游戏完成！答对 ${successCount}/${totalRounds} 轮，正确率 ${accuracy}%，用时 ${secs} 秒`);
+
+      const levelName = { easy: '简单', medium: '中等', hard: '困难' }[level];
+      const note = `眼疾手快-${levelName} ${successCount}/${totalRounds}轮 正确率${accuracy}% 用时${secs}秒`;
+      const form = new URLSearchParams();
+      form.set('id', sessionId);
+      form.set('success', successCount);
+      form.set('errors', errorCount);
+      form.set('notes', note);
+      form.set('append', '1');
+      fetch('/api/session/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form
+      });
+
+      document.getElementById('startBtn').textContent = '重新开始';
+      document.getElementById('startBtn').disabled = false;
+    }
+
+    // 更新面板显示
+    function updatePanel() {
+      document.getElementById('round').textContent = `${currentRound}/${totalRounds}`;
+      document.getElementById('succ').textContent = successCount;
+      document.getElementById('err').textContent = errorCount;
+    }
+
+    // 更新状态消息
+    function updateStatus(text, isError = false) {
+      const msgEl = document.getElementById('statusMsg');
+      msgEl.textContent = text;
+      msgEl.classList.remove('success', 'error');
+      if (text.includes('答对') || text.includes('完成')) {
+        msgEl.classList.add('success');
+      } else if (text.includes('答错') || isError) {
+        msgEl.classList.add('error');
+      }
+    }
+
+    // 开始计时
+    function startTimer() {
+      startTs = Date.now();
+      tick();
+      clearInterval(window._t);
+      window._t = setInterval(tick, 500);
+    }
+
+    // 更新计时
+    function tick() {
+      const secs = Math.floor((Date.now() - startTs) / 1000);
+      document.getElementById('elapsed').textContent = secs + ' 秒';
+    }
+
+    // 提交进度
+    function postProgress() {
+      const form = new URLSearchParams();
+      form.set('id', sessionId);
+      form.set('success', successCount);
+      form.set('errors', errorCount);
+      fetch('/api/session/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form
+      });
+    }
+
+    // 设置难度
+    function setLevel(newLevel, buttonElement) {
+      level = newLevel;
+
+      // 更新按钮状态
+      document.querySelectorAll('.level-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      if (buttonElement) {
+        buttonElement.classList.add('active');
+      }
+
+      initGame();
+    }
+
+    // 辅助函数：延迟
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      // 绑定难度按钮
+      document.querySelectorAll('.level-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const level = this.dataset.level;
+          setLevel(level, this);
+        });
+      });
+
+      // 默认激活中等难度
+      const mediumBtn = document.querySelector('.level-btn[data-level="medium"]');
+      if (mediumBtn) {
+        mediumBtn.classList.add('active');
+      }
+
+      initGame();
+      startTimer();
+
+      // 绑定开始按钮
+      document.getElementById('startBtn').addEventListener('click', () => {
+        if (!gameStarted) {
+          startTimer();
+        }
+        document.getElementById('startBtn').disabled = true;
+        startRound();
+      });
+
+      // 绑定下一轮按钮
+      document.getElementById('nextBtn').addEventListener('click', nextRound);
+    });
+  </script>
+</head>
+<body>
+  <header>
+    <h1>眼疾手快 🥤</h1>
+    <nav>
+      <a href="/">首页</a>
+    </nav>
+  </header>
+  <section class="panel">
+    <p class="big">考验你的观察力和记忆力！</p>
+    <p class="instruction">观察球在哪个杯子下，记住杯子交换的过程，最后猜出球的位置</p>
+
+    <p class="stats">
+      计时：<strong id="elapsed">0 秒</strong> ｜
+      轮次：<strong id="round">0/5</strong> ｜
+      成功：<strong id="succ">0</strong> ｜
+      失败：<strong id="err">0</strong>
+    </p>
+
+    <!-- 难度选择器 -->
+    <div class="difficulty-selector">
+      <span>难度：</span>
+      <div class="difficulty-buttons">
+        <button class="level-btn" data-level="easy">简单 (3杯)</button>
+        <button class="level-btn" data-level="medium">中等 (4杯)</button>
+        <button class="level-btn" data-level="hard">困难 (5杯)</button>
+      </div>
+    </div>
+
+    <div class="game-area">
+      <div class="status-box">
+        <div id="statusMsg" class="status-message">准备好了吗？</div>
+      </div>
+
+      <div class="cups-container">
+        <!-- 杯子将由JavaScript动态生成 -->
+      </div>
+
+      <div style="margin-top: 2rem;">
+        <button id="startBtn" class="game-button primary">开始游戏</button>
+        <button id="nextBtn" class="game-button primary" style="display: none;">下一轮</button>
+      </div>
+    </div>
+
+    <div style="margin-top:1.5rem;">
+      <form action="/session/finish" method="post" style="display:inline">
+        <input type="hidden" name="id" value="{{.ID}}" />
+        <button type="submit" class="game-button secondary">结束训练</button>
+      </form>
+    </div>
+  </section>
+</body>
+</html>

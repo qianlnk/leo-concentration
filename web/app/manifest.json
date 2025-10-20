@@ -1,0 +1,13 @@
+{
+  "name": "小小超能力训练营",
+  "short_name": "训练营",
+  "start_url": "/app/index.html",
+  "display": "standalone",
+  "theme_color": "#ffcad4",
+  "background_color": "#f7fbff",
+  "icons": [
+    { "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADAAAAAAABfGJqVAAAACXBIWXMAAAsTAAALEwEAmpwYAAAADUlEQVR4nGNgGAWjYGBgAAAAPQABmkU3GQAAAABJRU5ErkJggg==", "sizes": "192x192", "type": "image/png" },
+    { "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPAAAADwAAAAAAABaYt9bAAAACXBIWXMAAAsTAAALEwEAmpwYAAAADUlEQVR4nGNgGAWjYGBgAAAAPQABmkU3GQAAAABJRU5ErkJggg==", "sizes": "512x512", "type": "image/png" }
+  ]
+}
+

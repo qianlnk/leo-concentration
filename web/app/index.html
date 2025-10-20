@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="/app/manifest.json" />
+  <link rel="stylesheet" href="/static/app.css" />
+  <title>小小超能力训练营</title>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', ()=>{
+        navigator.serviceWorker.register('/app/sw.js');
+      });
+    }
+  </script>
+</head>
+<body class="kids-bg">
+  <header class="kids-header">
+    <div class="header-inner">
+      <h1>小小超能力训练营（App）</h1>
+      <nav>
+        <a href="#">训练项目</a>
+        <a href="#reports">每日成果</a>
+      </nav>
+    </div>
+  </header>
+  <section class="banner">
+    <div class="mascot"></div>
+    <div class="banner-text">
+      <h2>离线可用，可添加到主屏幕</h2>
+      <p class="sub">在 Safari/Chrome 的菜单中选择“添加到主屏幕”，即可安装为 App。</p>
+    </div>
+  </section>
+  <section>
+    <h2 class="section-title">训练项目</h2>
+    <div id="trainings" class="grid cards"></div>
+  </section>
+
+  <script>
+    async function fetchJSON(url, opts){ const r=await fetch(url, opts); if(!r.ok) throw new Error('HTTP '+r.status); return await r.json(); }
+    async function loadTrainings(){
+      const data = await fetchJSON('/api/trainings');
+      const box = document.getElementById('trainings'); box.innerHTML='';
+      data.trainings.forEach(t=>{
+        const div = document.createElement('div'); div.className='card kids-card';
+        div.innerHTML = `
+          <div class="card-top"><div class="icon">⭐️</div><h3 class="card-title">${t.name}</h3></div>
+          <p class="muted">类别：${t.category}</p>
+          <p class="muted">建议时长：${t.suggested} 分钟</p>
+          <div class="actions">
+            <button class="cta" data-id="${t.id}" data-slug="${t.slug}">开始训练</button>
+          </div>`;
+        box.appendChild(div);
+      });
+      box.querySelectorAll('button[data-id]').forEach(btn=>{
+        btn.onclick = async ()=>{
+          const tid = btn.dataset.id, slug = btn.dataset.slug;
+          const form = new URLSearchParams(); form.set('training_id', tid);
+          const res = await fetchJSON('/api/sessions/start', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form});
+          const id = res.id;
+          if(slug){ location.href = `/play/${slug}?id=${id}`; }
+          else { location.href = `/session?id=${id}`; }
+        };
+      });
+    }
+    loadTrainings();
+  </script>
+</body>
+</html>
+
