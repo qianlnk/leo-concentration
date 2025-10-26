@@ -5,26 +5,212 @@
   <title>唐诗迷踪 - {{.TrainingName}}</title>
   <link rel="stylesheet" href="/static/app.css" />
   <style>
-    .panel { text-align:center; }
-    .big { font-size: 1.5rem; font-weight: 800; color: #4a90e2; }
-    .board { display:grid; gap:10px; justify-content:center; margin-top:1rem; }
-    .cell { display:flex; align-items:center; justify-content:center; font-size:1.4rem; font-weight:700; border-radius:12px; cursor:pointer; background:#fff8d6; border:2px solid #f2ae2e; width:56px; height:56px; box-sizing:border-box; }
+    /* Header优化 - 紧凑布局 */
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 10px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    header h1 {
+      font-size: 1.5rem;
+      margin: 0;
+      color: white;
+      display: inline-block;
+    }
+    header nav {
+      display: inline-block;
+      float: right;
+      margin-top: 5px;
+    }
+    header nav a {
+      color: white;
+      text-decoration: none;
+      background: rgba(255,255,255,0.2);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      transition: all 0.3s;
+    }
+    header nav a:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+
+    /* 信息栏 - 卡片式布局 */
+    .info-bar {
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 12px;
+      margin: 10px auto;
+      max-width: 600px;
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .info-item {
+      display: inline-block;
+    }
+    .info-label {
+      font-size: 0.85rem;
+      color: #666;
+      display: block;
+    }
+    .info-value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #4a90e2;
+    }
+    .timer {
+      font-size: 2rem;
+      font-weight: 900;
+      color: #e24a68;
+    }
+
+    /* 欢迎消息 */
+    .welcome-msg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+      margin: 20px auto;
+      max-width: 500px;
+    }
+    .welcome-msg h2 { font-size: 1.8rem; margin-bottom: 12px; }
+    .welcome-msg p { font-size: 1.1rem; margin: 8px 0; opacity: 0.95; }
+    .welcome-msg .icon { font-size: 3rem; margin-bottom: 12px; }
+
+    /* 成功消息 */
+    .success-msg {
+      background: linear-gradient(135deg, #49c36b 0%, #3da85a 100%);
+      color: white;
+      padding: 40px 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(73, 195, 107, 0.3);
+      margin: 20px auto;
+      max-width: 500px;
+      animation: successPop 0.5s ease;
+    }
+    .success-msg h2 { font-size: 2rem; margin-bottom: 12px; }
+    .success-msg p { font-size: 1.2rem; margin: 8px 0; }
+    .success-msg .icon { font-size: 4rem; margin-bottom: 12px; }
+    @keyframes successPop {
+      0% { transform: scale(0.8); opacity: 0; }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* 控件美化 */
+    .controls {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      align-items: center;
+      margin: 10px 0;
+      flex-wrap: wrap;
+    }
+    .modeSelector, .poemSelector {
+      font-size: 0.95rem;
+      padding: 8px 12px;
+      border: 2px solid #4a90e2;
+      border-radius: 8px;
+      background: white;
+      color: #333;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+    .modeSelector:hover, .poemSelector:hover {
+      border-color: #49c36b;
+      background: #f0f9f4;
+      transform: translateY(-2px);
+    }
+    .modeSelector:focus, .poemSelector:focus {
+      outline: none;
+      border-color: #49c36b;
+      box-shadow: 0 0 0 3px rgba(73, 195, 107, 0.2);
+    }
+    .modeSelector:active, .modeSelector.active {
+      background: linear-gradient(135deg, #49c36b 0%, #3da85a 100%);
+      color: white;
+      border-color: #3da85a;
+    }
+    .startBtn {
+      font-size: 1rem;
+      padding: 10px 24px;
+      background: linear-gradient(135deg, #49c36b 0%, #3da85a 100%);
+      color: white;
+      border: none;
+      border-radius: 25px;
+      cursor: pointer;
+      font-weight: bold;
+      box-shadow: 0 4px 12px rgba(73, 195, 107, 0.3);
+      transition: all 0.3s;
+    }
+    .startBtn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(73, 195, 107, 0.4);
+    }
+    .startBtn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .endBtn {
+      font-size: 0.9rem;
+      padding: 8px 20px;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: 600;
+      box-shadow: 0 3px 10px rgba(245, 87, 108, 0.3);
+      transition: all 0.3s;
+    }
+    .endBtn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 14px rgba(245, 87, 108, 0.4);
+    }
+
+    .panel { text-align:center; padding-top: 15px; }
+    .board { gap:10px; justify-content:center; margin-top:0.5rem; min-height: 300px; display: flex; align-items: center; }
+    .cell { display:flex; align-items:center; justify-content:center; font-size:1.4rem; font-weight:700; border-radius:12px; cursor:pointer; background:#fff8d6; border:2px solid #f2ae2e; width:56px; height:56px; box-sizing:border-box; transition: all 0.2s; }
+    .cell:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(242, 174, 46, 0.3); }
     .cell.ok { background:#c8f7c5; border-color:#49c36b; }
     .cell.bad { background:#ffd6d6; border-color:#e24a68; }
-    .controls { display:flex; gap:8px; justify-content:center; align-items:center; margin-top:8px; flex-wrap:wrap; }
-    .stats { color:#555; margin-top: 6px; }
   </style>
   <script>
     let sessionId = {{.ID}};
-    // Poems dataset
+    // Poems dataset - 五言诗
     const poemsFive = [
+      // 五言绝句
       {title:'静夜思', author:'李白', chars:'床前明月光疑是地上霜举头望明月低头思故乡'},
       {title:'春晓', author:'孟浩然', chars:'春眠不觉晓处处闻啼鸟夜来风雨声花落知多少'},
-      {title:'望庐山瀑布', author:'李白', chars:'日照香炉生紫烟遥看瀑布挂前川飞流直下三千尺疑是银河落九天'}
+      {title:'登鹳雀楼', author:'王之涣', chars:'白日依山尽黄河入海流欲穷千里目更上一层楼'},
+      {title:'相思', author:'王维', chars:'红豆生南国春来发几枝愿君多采撷此物最相思'},
+      {title:'鹿柴', author:'王维', chars:'空山不见人但闻人语响返景入深林复照青苔上'},
+      {title:'寻隐者不遇', author:'贾岛', chars:'松下问童子言师采药去只在此山中云深不知处'},
+      {title:'江雪', author:'柳宗元', chars:'千山鸟飞绝万径人踪灭孤舟蓑笠翁独钓寒江雪'},
+      {title:'悯农', author:'李绅', chars:'锄禾日当午汗滴禾下土谁知盘中餐粒粒皆辛苦'},
+      {title:'登乐游原', author:'李商隐', chars:'向晚意不适驱车登古原夕阳无限好只是近黄昏'},
+      {title:'宿建德江', author:'孟浩然', chars:'移舟泊烟渚日暮客愁新野旷天低树江清月近人'}
     ];
+    // 七言诗
     const poemsSeven = [
-      {title:'春望', author:'杜甫', chars:'国破山河在城春草木深感时花溅泪恨别鸟惊心烽火连三月家书抵万金白头搔更短浑欲不胜簪'},
-      {title:'登高(前四联)', author:'杜甫', chars:'风急天高猿啸哀渚清沙白鸟飞回无边落木萧萧下不尽长江滚滚来'}
+      // 七言绝句
+      {title:'望庐山瀑布', author:'李白', chars:'日照香炉生紫烟遥看瀑布挂前川飞流直下三千尺疑是银河落九天'},
+      {title:'早发白帝城', author:'李白', chars:'朝辞白帝彩云间千里江陵一日还两岸猿声啼不住轻舟已过万重山'},
+      {title:'黄鹤楼送孟浩然之广陵', author:'李白', chars:'故人西辞黄鹤楼烟花三月下扬州孤帆远影碧空尽唯见长江天际流'},
+      {title:'望天门山', author:'李白', chars:'天门中断楚江开碧水东流至此回两岸青山相对出孤帆一片日边来'},
+      {title:'赠汪伦', author:'李白', chars:'李白乘舟将欲行忽闻岸上踏歌声桃花潭水深千尺不及汪伦送我情'},
+      {title:'江南逢李龟年', author:'杜甫', chars:'岐王宅里寻常见崔九堂前几度闻正是江南好风景落花时节又逢君'},
+      {title:'枫桥夜泊', author:'张继', chars:'月落乌啼霜满天江枫渔火对愁眠姑苏城外寒山寺夜半钟声到客船'},
+      {title:'春夜喜雨', author:'杜甫', chars:'好雨知时节当春乃发生随风潜入夜润物细无声'},
+      {title:'绝句', author:'杜甫', chars:'两个黄鹂鸣翠柳一行白鹭上青天窗含西岭千秋雪门泊东吴万里船'},
+      {title:'山行', author:'杜牧', chars:'远上寒山石径斜白云生处有人家停车坐爱枫林晚霜叶红于二月花'}
     ];
     let mode = 'five'; // 'five' / 'seven'
     let currentPoem = null;
@@ -33,7 +219,104 @@
     let next = 0;
     let success=0, errors=0;
     let startTs=0, timerId;
+    let roundNumber = 0;
+    let currentRoundId = 0;
+    let roundStartTime = 0;
+    let gameStarted = false; // 游戏是否已开始
 
+    // 开始新轮次
+    async function startRound() {
+      roundNumber++;
+      roundStartTime = Date.now();
+
+      console.log('🔵 [唐诗迷踪] 开始新轮次', { sessionId, roundNumber, poem: currentPoem.title });
+      try {
+        const form = new URLSearchParams();
+        form.set('session_id', sessionId);
+        form.set('round_number', roundNumber);
+        const response = await fetch('/api/session/round/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        currentRoundId = data.round_id;
+        console.log('✅ [唐诗迷踪] 轮次开始成功', { roundId: currentRoundId });
+      } catch (err) {
+        console.error('❌ [唐诗迷踪] 开始轮次失败:', err);
+      }
+    }
+
+    // 完成当前轮次
+    async function finishRound(isSuccess) {
+      if (!currentRoundId) {
+        console.warn('⚠️ [唐诗迷踪] 没有currentRoundId，跳过轮次记录');
+        return;
+      }
+
+      const duration = Math.floor((Date.now() - roundStartTime) / 1000);
+      const accuracy = errors === 0 ? 100 : Math.round((success / (success + errors)) * 100);
+      const score = isSuccess ? 100 : Math.round((success / target.length) * 80);
+
+      const metadata = JSON.stringify({
+        poem_name: currentPoem.title,
+        poem_author: currentPoem.author,
+        poem_type: mode === 'five' ? '五言诗' : '七言诗',
+        characters_count: target.length,
+        success_count: success,
+        error_count: errors,
+        time_seconds: duration
+      });
+
+      console.log('🔵 [唐诗迷踪] 发送轮次完成请求', { roundId: currentRoundId, duration, isSuccess });
+      try {
+        const form = new URLSearchParams();
+        form.set('round_id', currentRoundId);
+        form.set('duration_seconds', duration);
+        form.set('success', isSuccess ? '1' : '0');
+        form.set('score', score);
+        form.set('accuracy', accuracy);
+        form.set('metadata', metadata);
+
+        const response = await fetch('/api/session/round/finish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        console.log('✅ [唐诗迷踪] 轮次记录完成', data);
+      } catch (err) {
+        console.error('❌ [唐诗迷踪] 记录轮次失败:', err);
+      }
+    }
+
+    // 初始化UI（不开始游戏）
+    function initUI(){
+      const board = document.getElementById('board');
+      board.style.display = 'flex';
+      board.innerHTML = `
+        <div class="welcome-msg">
+          <div class="icon">📖</div>
+          <h2>唐诗迷踪训练</h2>
+          <p>选择诗词类型和诗名</p>
+          <p>按顺序点击汉字，锻炼记忆力！</p>
+        </div>
+      `;
+      next = 0;
+      success = 0;
+      errors = 0;
+      updatePanel();
+      document.getElementById('elapsed').textContent = '0 秒';
+      document.getElementById('poemTitle').textContent = '—';
+      gameStarted = false;
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('startBtn').textContent = '🚀 开始训练';
+      document.getElementById('modeFive').disabled = false;
+      document.getElementById('modeSeven').disabled = false;
+      document.getElementById('poemSel').disabled = false;
+    }
+
+    // 选择诗词（不生成游戏内容）
     function pickPoem(){
       const list = mode==='five'?poemsFive:poemsSeven;
       const sel = document.getElementById('poemSel').value;
@@ -42,13 +325,16 @@
       } else {
         currentPoem = list.find(p=>p.title===sel) || list[0];
       }
-      build();
+      document.getElementById('poemTitle').textContent = currentPoem.title + '（' + currentPoem.author + '）';
     }
-    function build(){
+
+    // 生成游戏内容（不调用API）
+    function buildBoard(){
       target = currentPoem.chars.replace(/[^\u4e00-\u9fa5]/g,'');
       const chars = target.split('');
       const board = document.getElementById('board');
       board.innerHTML='';
+      board.style.display = 'grid';
       const grid = gridSize(chars.length);
       board.style.gridTemplateColumns = `repeat(${grid.cols}, ${cellSize(grid)}px)`;
       order = chars.slice(); shuffle(order);
@@ -58,8 +344,37 @@
         d.onclick=()=>clickCell(d, ch);
         board.appendChild(d);
       });
-      next = 0; success=0; errors=0; updatePanel(); startTimer();
-      document.getElementById('poemTitle').textContent = currentPoem.title + '（' + (mode==='five'?'五言绝句':'七言律诗') + '）';
+    }
+
+    // 开始游戏（调用API和计时）
+    async function startGame(){
+      if (gameStarted) return;
+      if (!currentPoem) {
+        alert('请先选择一首诗');
+        return;
+      }
+      gameStarted = true;
+
+      // 禁用控件
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('modeFive').disabled = true;
+      document.getElementById('modeSeven').disabled = true;
+      document.getElementById('poemSel').disabled = true;
+
+      // 生成随机布局
+      buildBoard();
+
+      // 重置计数
+      next = 0;
+      success = 0;
+      errors = 0;
+      updatePanel();
+
+      // 开始计时
+      startTimer();
+
+      // 开始新轮次记录
+      await startRound();
     }
     function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } }
     function gridSize(n){
@@ -77,11 +392,11 @@
       const expect = target[next];
       if(ch===expect){
         el.classList.add('ok');
-        success++; next++; postProgress(); updatePanel();
+        success++; next++; updatePanel();
         if(next>=target.length){ finish(); }
       } else {
         errors++; el.classList.add('bad'); setTimeout(()=>{ el.classList.remove('bad'); }, 250);
-        postProgress(); updatePanel();
+        updatePanel();
       }
     }
     function updatePanel(){
@@ -89,51 +404,121 @@
       document.getElementById('succ').textContent = success;
       document.getElementById('err').textContent = errors;
     }
-    function startTimer(){ startTs=Date.now(); clearInterval(timerId); timerId=setInterval(()=>{
+    function startTimer(){
+      startTs=Date.now();
+      clearInterval(timerId);
+      timerId=setInterval(()=>{
+        const secs = Math.floor((Date.now()-startTs)/1000);
+        document.getElementById('elapsed').textContent = secs+' 秒';
+      }, 500);
+    }
+
+    // 显示成功消息
+    function showSuccessMessage(secs){
+      const board = document.getElementById('board');
+      const accuracy = errors === 0 ? 100 : Math.round((success / (success + errors)) * 100);
+      board.style.display = 'flex';
+      board.innerHTML = `
+        <div class="success-msg">
+          <div class="icon">🎉</div>
+          <h2>你真棒！</h2>
+          <p>用时 ${secs} 秒</p>
+          <p>准确率 ${accuracy}%</p>
+          <p style="font-size: 0.9rem; opacity: 0.9;">正在准备下一轮...</p>
+        </div>
+      `;
+    }
+
+    async function finish(){
+      clearInterval(timerId);
       const secs = Math.floor((Date.now()-startTs)/1000);
-      document.getElementById('elapsed').textContent = secs+' 秒';
-    }, 500); }
-    function postProgress(){ const form = new URLSearchParams(); form.set('id', sessionId); form.set('success', success); form.set('errors', errors); fetch('/api/session/update', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form}); }
-    function finish(){ clearInterval(timerId); const secs = Math.floor((Date.now()-startTs)/1000);
-      document.getElementById('msg').textContent = '全部字按顺序完成，用时 '+secs+' 秒';
-      const note = `唐诗迷踪 ${currentPoem.title} ${mode==='five'?'五言绝句':'七言律诗'} 用时 ${secs}s`;
-      const form = new URLSearchParams(); form.set('id', sessionId); form.set('success', success); form.set('errors', errors); form.set('notes', note); form.set('append','1');
-      fetch('/api/session/update', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form}); }
-    function changeMode(m){ mode=m; populatePoemSelect(); pickPoem(); }
+      await finishRound(true);
+
+      // 显示成功消息
+      showSuccessMessage(secs);
+
+      // 2秒后自动重置
+      setTimeout(()=>{
+        initUI();
+      }, 2000);
+    }
+
+    function changeMode(m){
+      mode=m;
+      populatePoemSelect();
+      pickPoem();
+    }
     function populatePoemSelect(){
       const list = mode==='five'?poemsFive:poemsSeven;
       const sel = document.getElementById('poemSel'); sel.innerHTML='';
       const optR = document.createElement('option'); optR.value='random'; optR.textContent='随机'; sel.appendChild(optR);
       list.forEach(p=>{ const o=document.createElement('option'); o.value=p.title; o.textContent=p.title+'（'+p.author+'）'; sel.appendChild(o); });
     }
-    window.addEventListener('resize', ()=>{ if(currentPoem){ build(); } });
-    document.addEventListener('DOMContentLoaded', ()=>{ populatePoemSelect(); pickPoem(); });
+
+    // 页面加载时初始化
+    document.addEventListener('DOMContentLoaded', ()=>{
+      populatePoemSelect();
+      pickPoem();
+      initUI(); // 显示欢迎消息，不开始游戏
+    });
   </script>
 </head>
 <body>
   <header>
-    <h1>唐诗迷踪</h1>
+    <h1>📖 唐诗迷踪</h1>
     <nav>
-      <a href="/">首页</a>
+      <a href="/">返回首页</a>
     </nav>
   </header>
   <section class="panel">
-    <p class="big">按顺序点击诗句中的字：下一个是 <strong id="nextChar">字</strong></p>
-    <p>模式：
-      <button onclick="changeMode('five')">五言绝句</button>
-      <button onclick="changeMode('seven')">七言律诗</button>
-      选择诗：<select id="poemSel" onchange="pickPoem()"></select>
-    </p>
-    <p>当前诗：<strong id="poemTitle">—</strong> ｜ 计时：<strong id="elapsed">0 秒</strong></p>
-    <p>完成次数：<strong id="succ">0</strong>，错误次数：<strong id="err">0</strong></p>
+    <!-- 信息栏 -->
+    <div class="info-bar">
+      <div class="info-item">
+        <span class="info-label">当前诗</span>
+        <span class="info-value" id="poemTitle">—</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">计时</span>
+        <span class="info-value timer" id="elapsed">0 秒</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">下一个字</span>
+        <span class="info-value" id="nextChar">—</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">完成</span>
+        <span class="info-value" style="color: #49c36b;" id="succ">0</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">错误</span>
+        <span class="info-value" style="color: #e24a68;" id="err">0</span>
+      </div>
+    </div>
+
+    <!-- 控件区域 -->
+    <div class="controls">
+      <label for="modeFive" style="font-weight: 600; color: #333; font-size: 1rem;">📚 诗词类型：</label>
+      <button id="modeFive" class="modeSelector" onclick="changeMode('five')">五言诗</button>
+      <button id="modeSeven" class="modeSelector" onclick="changeMode('seven')">七言诗</button>
+    </div>
+    <div class="controls">
+      <label for="poemSel" style="font-weight: 600; color: #333; font-size: 1rem;">📜 选择诗：</label>
+      <select id="poemSel" class="poemSelector" onchange="pickPoem()"></select>
+    </div>
+    <div>
+      <button id="startBtn" class="startBtn" onclick="startGame()">🚀 开始训练</button>
+    </div>
+
+    <!-- 游戏区域 -->
     <div id="board" class="board" aria-label="poem grid"></div>
+
+    <!-- 结束按钮 -->
     <div style="margin-top:1rem">
       <form action="/session/finish" method="post" style="display:inline">
         <input type="hidden" name="id" value="{{.ID}}" />
-        <button type="submit" style="background:#4ab3e2">结束训练</button>
+        <button type="submit" class="endBtn">结束训练</button>
       </form>
     </div>
-    <p id="msg" class="stats"></p>
   </section>
 </body>
 </html>

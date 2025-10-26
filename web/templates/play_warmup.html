@@ -5,12 +5,49 @@
   <title>全身唤醒 - {{.TrainingName}}</title>
   <link rel="stylesheet" href="/static/app.css" />
   <style>
+    /* Header优化 - 紧凑布局 */
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 10px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    header h1 {
+      font-size: 1.5rem;
+      margin: 0;
+      color: white;
+      display: inline-block;
+    }
+    header nav {
+      display: inline-block;
+      float: right;
+      margin-top: 5px;
+    }
+    header nav a {
+      color: white;
+      text-decoration: none;
+      background: rgba(255,255,255,0.2);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      transition: all 0.3s;
+    }
+    header nav a:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+
     .stage { text-align:center; }
     .big { font-size: 2rem; font-weight: 800; color: #e24a68; }
-    .counter { font-size: 2rem; font-weight: 900; color:#49c36b; margin: 0.5rem 0; }
     .energy { width: 180px; height: 180px; margin: 0 auto; border-radius: 50%; background: radial-gradient(circle at 50% 50%, #fff4d6 0%, #ffd36b 60%, #ffa447 100%); border: 6px solid #ff8aa0; box-shadow: 0 0 20px rgba(255, 212, 100, 0.6); transition: transform 0.1s ease; }
     .btns { display:flex; gap: 12px; justify-content:center; margin-top: 1rem; }
     .note { color:#666; }
+
+    /* 信息栏样式 - 统一样式 */
+    .info-bar { background: #f8f9fa; padding: 10px; border-radius: 12px; margin: 10px auto; max-width: 600px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
+    .info-item { display: inline-block; }
+    .info-label { font-size: 0.85rem; color: #666; display: block; }
+    .info-value { font-size: 1.3rem; font-weight: 700; color: #4a90e2; }
+    .timer { font-size: 2rem; font-weight: 900; color: #e24a68; }
   </style>
   <script>
     let sessionId = {{.ID}};
@@ -18,16 +55,102 @@
     let errors = 0;  // 休息/中断次数
     let setStartTs = 0;
     let timerId;
+    let roundNumber = 0;
+    let currentRoundId = 0;
+    let roundStartTime = 0;
+    // 开始新轮次
+    async function startRound() {
+      roundNumber++;
+      roundStartTime = Date.now();
+
+      console.log('🔵 [全身唤醒] 开始新轮次', { sessionId, roundNumber });
+      try {
+        const form = new URLSearchParams();
+        form.set('session_id', sessionId);
+        form.set('round_number', roundNumber);
+        const response = await fetch('/api/session/round/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        currentRoundId = data.round_id;
+        console.log('✅ [全身唤醒] 轮次开始成功', { roundId: currentRoundId });
+      } catch (err) {
+        console.error('❌ [全身唤醒] 开始轮次失败:', err);
+      }
+    }
+
+    // 完成当前轮次
+    async function finishRound(isSuccess) {
+      if (!currentRoundId) {
+        console.warn('⚠️ [全身唤醒] 没有currentRoundId，跳过轮次记录');
+        return;
+      }
+
+      const duration = Math.floor((Date.now() - roundStartTime) / 1000);
+      const score = isSuccess ? 100 : 0;
+      const accuracy = isSuccess ? 100 : 0;
+
+      const metadata = JSON.stringify({
+        exercise_type: '开合跳',
+        duration_seconds: duration,
+        completed: isSuccess
+      });
+
+      console.log('🔵 [全身唤醒] 发送轮次完成请求', { roundId: currentRoundId, duration, isSuccess });
+      try {
+        const form = new URLSearchParams();
+        form.set('round_id', currentRoundId);
+        form.set('duration_seconds', duration);
+        form.set('success', isSuccess ? '1' : '0');
+        form.set('score', score);
+        form.set('accuracy', accuracy);
+        form.set('metadata', metadata);
+
+        const response = await fetch('/api/session/round/finish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        console.log('✅ [全身唤醒] 轮次记录完成', data);
+      } catch (err) {
+        console.error('❌ [全身唤醒] 记录轮次失败:', err);
+      }
+    }
+
     function updateCounts(){ document.getElementById('succ').textContent = success; document.getElementById('err').textContent = errors; }
     function updateTimer(){ const secs = setStartTs ? Math.floor((Date.now()-setStartTs)/1000) : 0; document.getElementById('elapsed').textContent = secs+' 秒'; }
-    function startSet(){ setStartTs = Date.now(); updateTimer(); clearInterval(timerId); timerId = setInterval(updateTimer, 500); document.getElementById('msg').textContent=''; pulse(); }
-    function completeSet(){ if(!setStartTs){ return } const secs = Math.floor((Date.now()-setStartTs)/1000); success++; updateCounts(); postProgress();
-      const note = `全身唤醒 开合跳 一组 用时 ${secs}s`;
-      const form = new URLSearchParams(); form.set('id', sessionId); form.set('success', success); form.set('errors', errors); form.set('notes', note); form.set('append','1');
-      fetch('/api/session/update', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form});
-      clearInterval(timerId); setStartTs = 0; updateTimer(); document.getElementById('msg').textContent = '已完成一组，用时 '+secs+' 秒'; pulse(); }
-    function rest(){ errors++; updateCounts(); postProgress(); flash(); }
-    function postProgress(){ const form = new URLSearchParams(); form.set('id', sessionId); form.set('success', success); form.set('errors', errors); fetch('/api/session/update', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form}); }
+    async function startSet(){
+      setStartTs = Date.now();
+      updateTimer();
+      clearInterval(timerId);
+      timerId = setInterval(updateTimer, 500);
+      document.getElementById('msg').textContent='';
+      pulse();
+      await startRound();
+    }
+    async function completeSet(){
+      if(!setStartTs){ return }
+      const secs = Math.floor((Date.now()-setStartTs)/1000);
+      success++;
+      updateCounts();
+      await finishRound(true);
+      clearInterval(timerId);
+      setStartTs = 0;
+      updateTimer();
+      document.getElementById('msg').textContent = '已完成一组，用时 '+secs+' 秒';
+      pulse();
+    }
+    async function rest(){
+      if (currentRoundId) {
+        await finishRound(false);
+      }
+      errors++;
+      updateCounts();
+      flash();
+    }
     function pulse(){ const el = document.querySelector('.energy'); el.style.transform='scale(1.05)'; setTimeout(()=>{ el.style.transform='scale(1)'; }, 120); }
     function flash(){ const el = document.querySelector('.energy'); el.style.filter='hue-rotate(40deg)'; setTimeout(()=>{ el.style.filter='none'; }, 200); }
     document.addEventListener('DOMContentLoaded', ()=>{ updateCounts(); updateTimer(); });
@@ -42,9 +165,24 @@
   </header>
   <section class="stage">
     <p class="big">全身唤醒：做开合跳，让身体充满能量！</p>
-    <p>当前一组计时：<strong id="elapsed">0 秒</strong></p>
+
+    <!-- 信息栏 -->
+    <div class="info-bar">
+      <div class="info-item">
+        <span class="info-label">⏱️ 当前一组计时</span>
+        <span class="info-value timer" id="elapsed">0 秒</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">✅ 完成组数</span>
+        <span class="info-value" id="succ">0</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">💤 休息次数</span>
+        <span class="info-value" id="err">0</span>
+      </div>
+    </div>
+
     <div class="energy" aria-label="energy ball"></div>
-    <p class="counter">已完成组数：<strong id="succ">0</strong> ｜ 休息次数：<strong id="err">0</strong></p>
     <div class="btns">
       <button onclick="startSet()">开始一组</button>
       <button onclick="completeSet()" class="cta">完成一组</button>

@@ -5,10 +5,48 @@
   <title>眼疾手快 - {{.TrainingName}}</title>
   <link rel="stylesheet" href="/static/app.css" />
   <style>
+    /* Header优化 - 紧凑布局 */
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 10px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    header h1 {
+      font-size: 1.5rem;
+      margin: 0;
+      color: white;
+      display: inline-block;
+    }
+    header nav {
+      display: inline-block;
+      float: right;
+      margin-top: 5px;
+    }
+    header nav a {
+      color: white;
+      text-decoration: none;
+      background: rgba(255,255,255,0.2);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      transition: all 0.3s;
+    }
+    header nav a:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+
     .panel { text-align:center; padding: 1rem; }
     .big { font-size: 1.6rem; font-weight: 800; color: #ff6b6b; margin-bottom: 0.5rem; }
     .instruction { color: #666; margin-bottom: 1rem; font-size: 0.95rem; }
-    .stats { margin: 1rem 0; color:#555; font-size: 0.9rem; }
+
+    /* 信息栏样式 - 统一样式 */
+    .info-bar { background: #f8f9fa; padding: 10px; border-radius: 12px; margin: 10px auto; max-width: 600px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
+    .info-item { display: inline-block; }
+    .info-label { font-size: 0.85rem; color: #666; display: block; }
+    .info-value { font-size: 1.3rem; font-weight: 700; color: #4a90e2; }
+    .timer { font-size: 2rem; font-weight: 900; color: #e24a68; }
+
     .controls { display:flex; gap:8px; justify-content:center; align-items:center; margin: 1rem 0; flex-wrap: wrap; }
 
     /* 游戏区域 */
@@ -225,25 +263,20 @@
       transform: none;
     }
 
-    /* 难度按钮 */
+    /* 难度选择器 */
     .difficulty-selector {
       text-align: center;
       margin: 1rem auto;
     }
 
-    .difficulty-selector span {
-      font-size: 0.95rem;
+    .difficulty-selector label {
+      font-size: 1rem;
       color: #495057;
       font-weight: 600;
       margin-right: 10px;
     }
 
-    .difficulty-buttons {
-      display: inline-flex;
-      gap: 10px;
-    }
-
-    .level-btn {
+    .levelSelector {
       padding: 0.6rem 1.5rem;
       border-radius: 8px;
       border: 2px solid #667eea;
@@ -255,21 +288,14 @@
       transition: all 0.2s ease;
     }
 
-    .level-btn:hover {
-      background: #667eea;
-      color: white;
-      transform: translateY(-2px);
-    }
-
-    .level-btn.active {
-      background: #667eea;
-      color: white;
-      border-color: #667eea;
+    .levelSelector:hover {
+      border-color: #764ba2;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
     }
   </style>
   <script>
     let sessionId = {{.ID}};
-    let level = 'medium'; // 默认中等难度
+    let level = 'level4'; // 默认中等难度
     let startTs = 0;
     let successCount = 0;
     let errorCount = 0;
@@ -280,12 +306,19 @@
     let isShuffling = false;
     let gameStarted = false;
     let roundStarted = false;
+    let currentRoundId = 0; // 当前轮次的数据库ID
+    let roundStartTime = 0; // 轮次开始时间戳
 
-    // 难度配置
+    // 难度配置（8个等级）
     const levelConfigs = {
-      easy: { cups: 3, swaps: 4, speed: 600, rounds: 5 },
-      medium: { cups: 4, swaps: 6, speed: 500, rounds: 5 },
-      hard: { cups: 5, swaps: 8, speed: 400, rounds: 5 }
+      level1: { name: '1级 - 入门', cups: 3, swaps: 3, speed: 700, rounds: 5 },
+      level2: { name: '2级 - 简单', cups: 3, swaps: 4, speed: 600, rounds: 5 },
+      level3: { name: '3级 - 普通', cups: 4, swaps: 5, speed: 550, rounds: 5 },
+      level4: { name: '4级 - 中等', cups: 4, swaps: 6, speed: 500, rounds: 5 },
+      level5: { name: '5级 - 困难', cups: 5, swaps: 7, speed: 450, rounds: 5 },
+      level6: { name: '6级 - 很难', cups: 5, swaps: 8, speed: 400, rounds: 5 },
+      level7: { name: '7级 - 专家', cups: 6, swaps: 10, speed: 350, rounds: 5 },
+      level8: { name: '8级 - 大师', cups: 6, swaps: 12, speed: 300, rounds: 5 }
     };
 
     // 初始化游戏
@@ -321,13 +354,32 @@
     }
 
     // 开始新一轮
-    function startRound() {
+    async function startRound() {
       if (isShuffling || roundStarted) return;
 
       const config = levelConfigs[level];
       roundStarted = true;
       gameStarted = true;
       currentRound++;
+      roundStartTime = Date.now();
+
+      // 调用API创建轮次记录
+      console.log('🔵 开始记录轮次', { sessionId, currentRound });
+      try {
+        const form = new URLSearchParams();
+        form.set('session_id', sessionId);
+        form.set('round_number', currentRound);
+        const response = await fetch('/api/session/round/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        currentRoundId = data.round_id;
+        console.log('✅ 轮次记录开始成功', { roundId: currentRoundId, response: data });
+      } catch (err) {
+        console.error('❌ 开始轮次失败:', err);
+      }
 
       // 随机选择球的初始位置
       ballPosition = Math.floor(Math.random() * config.cups);
@@ -460,7 +512,7 @@
     }
 
     // 点击杯子
-    function clickCup(cupElement) {
+    async function clickCup(cupElement) {
       if (isShuffling || !roundStarted || !cupElement.classList.contains('clickable')) return;
 
       // 获取当前杯子的实际位置
@@ -479,13 +531,19 @@
       cupElement.classList.add('lifted');
 
       // 延迟添加正确/错误样式，让翻起动画先完成
-      setTimeout(() => {
+      setTimeout(async () => {
+        const config = levelConfigs[level];
+        const correctCup = cups.find(cup => cup.querySelector('.ball').style.display !== 'none');
+        const correctIndex = cups.indexOf(correctCup);
+
         if (hasBall) {
           // 答对了
           cupElement.classList.add('correct');
           successCount++;
           updateStatus('太棒了！答对了！🎉');
-          postProgress();
+
+          // 记录轮次结果
+          await finishRound(true, clickedIndex, correctIndex);
 
           // 显示下一轮或完成按钮
           if (currentRound < totalRounds) {
@@ -498,10 +556,6 @@
           cupElement.classList.add('wrong');
           errorCount++;
 
-          // 找到有球的杯子并翻起
-          const correctCup = cups.find(cup => cup.querySelector('.ball').style.display !== 'none');
-          const correctIndex = cups.indexOf(correctCup);
-
           updateStatus(`很遗憾，答错了！正确答案是第 ${correctIndex + 1} 个杯子`);
 
           // 延迟翻起正确的杯子
@@ -512,7 +566,8 @@
             }, 400);
           }, 300);
 
-          postProgress();
+          // 记录轮次结果
+          await finishRound(false, clickedIndex, correctIndex);
 
           // 显示下一轮或完成按钮
           setTimeout(() => {
@@ -529,6 +584,49 @@
       updatePanel();
     }
 
+    // 记录轮次完成
+    async function finishRound(success, guessedPosition, actualPosition) {
+      console.log('🔵 准备结束轮次', { currentRoundId, success });
+      if (!currentRoundId) {
+        console.warn('⚠️ 没有currentRoundId，跳过结束轮次记录');
+        return;
+      }
+
+      const config = levelConfigs[level];
+      const duration = Math.floor((Date.now() - roundStartTime) / 1000);
+      const accuracy = success ? 100 : 0;
+
+      // 构建metadata JSON
+      const metadata = JSON.stringify({
+        cups_count: config.cups,
+        swaps_count: config.swaps,
+        guessed_position: guessedPosition,
+        actual_position: actualPosition,
+        level: level
+      });
+
+      console.log('🔵 发送结束轮次请求', { roundId: currentRoundId, success, duration, metadata });
+      try {
+        const form = new URLSearchParams();
+        form.set('round_id', currentRoundId);
+        form.set('duration_seconds', duration); // 使用前端计算的准确时长
+        form.set('success', success ? '1' : '0');
+        form.set('score', success ? '100' : '0');
+        form.set('accuracy', accuracy);
+        form.set('metadata', metadata);
+
+        const response = await fetch('/api/session/round/finish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        console.log('✅ 轮次记录结束成功', data);
+      } catch (err) {
+        console.error('❌ 结束轮次失败:', err);
+      }
+    }
+
     // 下一轮
     function nextRound() {
       document.getElementById('nextBtn').style.display = 'none';
@@ -536,25 +634,11 @@
     }
 
     // 完成游戏
-    function finishGame() {
+    async function finishGame() {
       clearInterval(window._t);
       const secs = Math.floor((Date.now() - startTs) / 1000);
       const accuracy = Math.round((successCount / totalRounds) * 100);
       updateStatus(`游戏完成！答对 ${successCount}/${totalRounds} 轮，正确率 ${accuracy}%，用时 ${secs} 秒`);
-
-      const levelName = { easy: '简单', medium: '中等', hard: '困难' }[level];
-      const note = `眼疾手快-${levelName} ${successCount}/${totalRounds}轮 正确率${accuracy}% 用时${secs}秒`;
-      const form = new URLSearchParams();
-      form.set('id', sessionId);
-      form.set('success', successCount);
-      form.set('errors', errorCount);
-      form.set('notes', note);
-      form.set('append', '1');
-      fetch('/api/session/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form
-      });
 
       document.getElementById('startBtn').textContent = '重新开始';
       document.getElementById('startBtn').disabled = false;
@@ -593,31 +677,11 @@
       document.getElementById('elapsed').textContent = secs + ' 秒';
     }
 
-    // 提交进度
-    function postProgress() {
-      const form = new URLSearchParams();
-      form.set('id', sessionId);
-      form.set('success', successCount);
-      form.set('errors', errorCount);
-      fetch('/api/session/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form
-      });
-    }
 
-    // 设置难度
-    function setLevel(newLevel, buttonElement) {
-      level = newLevel;
-
-      // 更新按钮状态
-      document.querySelectorAll('.level-btn').forEach(btn => {
-        btn.classList.remove('active');
-      });
-      if (buttonElement) {
-        buttonElement.classList.add('active');
-      }
-
+    // 改变难度
+    function changeLevel() {
+      const selector = document.getElementById('levelSelector');
+      level = selector.value;
       initGame();
     }
 
@@ -628,20 +692,6 @@
 
     // 页面加载完成后初始化
     document.addEventListener('DOMContentLoaded', () => {
-      // 绑定难度按钮
-      document.querySelectorAll('.level-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-          const level = this.dataset.level;
-          setLevel(level, this);
-        });
-      });
-
-      // 默认激活中等难度
-      const mediumBtn = document.querySelector('.level-btn[data-level="medium"]');
-      if (mediumBtn) {
-        mediumBtn.classList.add('active');
-      }
-
       initGame();
       startTimer();
 
@@ -670,21 +720,39 @@
     <p class="big">考验你的观察力和记忆力！</p>
     <p class="instruction">观察球在哪个杯子下，记住杯子交换的过程，最后猜出球的位置</p>
 
-    <p class="stats">
-      计时：<strong id="elapsed">0 秒</strong> ｜
-      轮次：<strong id="round">0/5</strong> ｜
-      成功：<strong id="succ">0</strong> ｜
-      失败：<strong id="err">0</strong>
-    </p>
+    <!-- 信息栏 -->
+    <div class="info-bar">
+      <div class="info-item">
+        <span class="info-label">⏱️ 计时</span>
+        <span class="info-value timer" id="elapsed">0 秒</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">🎯 轮次</span>
+        <span class="info-value" id="round">0/5</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">✅ 成功</span>
+        <span class="info-value" id="succ">0</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">❌ 失败</span>
+        <span class="info-value" id="err">0</span>
+      </div>
+    </div>
 
     <!-- 难度选择器 -->
     <div class="difficulty-selector">
-      <span>难度：</span>
-      <div class="difficulty-buttons">
-        <button class="level-btn" data-level="easy">简单 (3杯)</button>
-        <button class="level-btn" data-level="medium">中等 (4杯)</button>
-        <button class="level-btn" data-level="hard">困难 (5杯)</button>
-      </div>
+      <label for="levelSelector">🎯 难度等级：</label>
+      <select id="levelSelector" class="levelSelector" onchange="changeLevel()">
+        <option value="level1">1级 - 入门 (3杯，3次交换，慢速)</option>
+        <option value="level2">2级 - 简单 (3杯，4次交换，慢速)</option>
+        <option value="level3">3级 - 普通 (4杯，5次交换，中速)</option>
+        <option value="level4" selected>4级 - 中等 (4杯，6次交换，中速)</option>
+        <option value="level5">5级 - 困难 (5杯，7次交换，快速)</option>
+        <option value="level6">6级 - 很难 (5杯，8次交换，快速)</option>
+        <option value="level7">7级 - 专家 (6杯，10次交换，极快)</option>
+        <option value="level8">8级 - 大师 (6杯，12次交换，极快)</option>
+      </select>
     </div>
 
     <div class="game-area">

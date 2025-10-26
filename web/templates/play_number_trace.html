@@ -5,13 +5,62 @@
   <title>数字迷踪 - {{.TrainingName}}</title>
   <link rel="stylesheet" href="/static/app.css" />
   <style>
-    .board { display:grid; gap:10px; justify-content:center; margin-top:1rem; }
-    .cell { display:flex; align-items:center; justify-content:center; font-size:1.2rem; font-weight:700; border-radius:12px; cursor:pointer; background:#fff8d6; border:2px solid #f2ae2e; }
+    /* 优化header样式 */
+    header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 10px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    header h1 { font-size: 1.5rem; margin: 0; color: white; display: inline-block; }
+    header nav { display: inline-block; float: right; margin-top: 5px; }
+    header nav a { color: white; text-decoration: none; background: rgba(255,255,255,0.2); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem; transition: all 0.3s; }
+    header nav a:hover { background: rgba(255,255,255,0.3); transform: scale(1.05); }
+
+    .board { gap:10px; justify-content:center; margin-top:0.5rem; min-height: 300px; display: flex; align-items: center; }
+    .cell { display:flex; align-items:center; justify-content:center; font-size:1.2rem; font-weight:700; border-radius:12px; cursor:pointer; background:#fff8d6; border:2px solid #f2ae2e; transition: all 0.2s; }
+    .cell:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(242, 174, 46, 0.3); }
     .cell.ok { background:#c8f7c5; border-color:#49c36b; }
     .cell.bad { background:#ffd6d6; border-color:#e24a68; }
-    .panel { text-align:center; }
-    .big { font-size: 1.5rem; font-weight: 800; color: #4a90e2; }
-    .controls { display:flex; gap:8px; justify-content:center; align-items:center; margin-top:8px; }
+    .cell.disabled { pointer-events: none; opacity: 0.5; }
+    .panel { text-align:center; padding-top: 15px; }
+    .info-bar { background: #f8f9fa; padding: 10px; border-radius: 12px; margin: 10px auto; max-width: 600px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
+    .info-item { display: inline-block; }
+    .info-label { font-size: 0.85rem; color: #666; display: block; }
+    .info-value { font-size: 1.3rem; font-weight: 700; color: #4a90e2; }
+    .timer { font-size: 2rem; font-weight: 900; color: #e24a68; }
+    .controls { display:flex; gap:8px; justify-content:center; align-items:center; margin: 10px 0; flex-wrap: wrap; }
+    .levelSelector { font-size: 0.95rem; padding: 8px 12px; border: 2px solid #4a90e2; border-radius: 8px; background: white; cursor: pointer; font-weight: 600; transition: all 0.3s; }
+    .levelSelector:hover { border-color: #49c36b; transform: translateY(-2px); }
+    .levelSelector:focus { outline: none; border-color: #49c36b; box-shadow: 0 0 0 3px rgba(73, 195, 107, 0.2); }
+    .startBtn { font-size: 1rem; padding: 10px 24px; background: linear-gradient(135deg, #49c36b 0%, #3da85a 100%); color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 12px rgba(73, 195, 107, 0.3); transition: all 0.3s; }
+    .startBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(73, 195, 107, 0.4); }
+    .startBtn:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
+    .welcome-msg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+      margin: 20px auto;
+      max-width: 500px;
+    }
+    .welcome-msg h2 { font-size: 1.8rem; margin-bottom: 12px; }
+    .welcome-msg p { font-size: 1.1rem; margin: 8px 0; opacity: 0.95; }
+    .welcome-msg .icon { font-size: 3rem; margin-bottom: 12px; }
+    .success-msg {
+      background: linear-gradient(135deg, #49c36b 0%, #3da85a 100%);
+      color: white;
+      padding: 40px 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(73, 195, 107, 0.3);
+      margin: 20px auto;
+      max-width: 500px;
+      animation: successPop 0.5s ease;
+    }
+    .success-msg h2 { font-size: 2rem; margin-bottom: 12px; }
+    .success-msg p { font-size: 1.2rem; margin: 8px 0; }
+    .success-msg .icon { font-size: 4rem; margin-bottom: 12px; }
+    @keyframes successPop {
+      0% { transform: scale(0.8); opacity: 0; }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); opacity: 1; }
+    }
   </style>
   <script>
     let sessionId = {{.ID}};
@@ -21,61 +70,186 @@
     let grid = 3; // start from 3x3 per level
     let startTs = 0;
     let timerId;
+    let currentRoundId = 0; // 当前轮次的数据库ID
+    let roundStartTime = 0; // 轮次开始时间戳
+    let roundNumber = 0; // 轮次编号
+    let levelSuccessCount = 0; // 当前级别的成功次数
+    let levelErrorCount = 0; // 当前级别的错误次数
+    let gameStarted = false; // 游戏是否已开始
+
     function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } }
-    function build(){
+
+    // 初始化UI（仅显示占位，不分配数字）
+    function initUI(){
+      const board = document.getElementById('board');
+      // 切换到flex布局用于显示消息
+      board.style.display = 'flex';
+      board.style.gridTemplateColumns = '';
+      board.innerHTML = `
+        <div class="welcome-msg">
+          <div class="icon">🎯</div>
+          <h2>数字迷踪训练</h2>
+          <p>选择难度，按顺序找出所有数字</p>
+          <p>锻炼你的专注力和记忆力！</p>
+        </div>
+      `;
+      next = 1;
+      levelSuccessCount = 0;
+      levelErrorCount = 0;
+      updatePanel();
+      document.getElementById('elapsed').textContent = '0 秒';
+      gameStarted = false;
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('startBtn').textContent = '开始训练';
+      document.getElementById('levelSelector').disabled = false;
+    }
+
+    // 生成游戏格子
+    function buildBoard(){
       const count = grid*grid;
       order = Array.from({length:count}, (_,i)=>i+1);
       shuffle(order);
       const board = document.getElementById('board');
       board.innerHTML='';
+      // 切换到grid布局用于游戏
+      board.style.display = 'grid';
       board.style.gridTemplateColumns = `repeat(${grid}, ${cellSize()}px)`;
       order.forEach(n=>{
-        const d=document.createElement('div'); d.className='cell'; d.textContent=n;
+        const d=document.createElement('div');
+        d.className='cell';
+        d.textContent=n;
         d.style.width = d.style.height = `${cellSize()}px`;
         d.onclick=()=>clickCell(d, n);
         board.appendChild(d);
       });
-      next = 1;
-      updatePanel();
-      startTimer();
     }
+
+    // 开始游戏
+    async function startGame(){
+      if (gameStarted) return;
+      gameStarted = true;
+
+      // 禁用开始按钮和等级选择
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('levelSelector').disabled = true;
+
+      // 此时才生成随机数字布局
+      buildBoard();
+
+      // 开始计时
+      startTimer();
+
+      // 开始新轮次记录
+      roundNumber++;
+      roundStartTime = Date.now();
+      console.log('🔵 [数字迷踪] 开始新轮次', { sessionId, roundNumber, grid: `${grid}x${grid}` });
+      try {
+        const form = new URLSearchParams();
+        form.set('session_id', sessionId);
+        form.set('round_number', roundNumber);
+        const response = await fetch('/api/session/round/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        currentRoundId = data.round_id;
+        console.log('✅ [数字迷踪] 轮次开始成功', { roundId: currentRoundId });
+      } catch (err) {
+        console.error('❌ [数字迷踪] 开始轮次失败:', err);
+      }
+    }
+
     function updatePanel(){
       document.getElementById('next').textContent = next;
       document.getElementById('succ').textContent = success;
       document.getElementById('err').textContent = errors;
       document.getElementById('level').textContent = grid+'×'+grid;
     }
-    function postProgress(){
-      const form = new URLSearchParams();
-      form.set('id', sessionId);
-      form.set('success', success);
-      form.set('errors', errors);
-      fetch('/api/session/update', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form});
-    }
-    function clickCell(el, n){
+
+    async function clickCell(el, n){
+      if (!gameStarted) return; // 游戏未开始不能点击
+
       if(n===next){
         el.classList.add('ok');
         success++;
+        levelSuccessCount++;
         next++;
-        postProgress();
         updatePanel();
         if(next>(grid*grid)){
           const secs = Math.floor((Date.now()-startTs)/1000);
+          // 停止计时
+          clearInterval(timerId);
+          // 完成当前级别，记录轮次数据
+          await finishRound(secs);
+
+          // 显示成功消息
+          showSuccessMessage(secs);
+
+          // 2秒后自动重置
           setTimeout(()=>{
-            alert('太棒了！等级 '+grid+'×'+grid+' 完成，用时 '+secs+' 秒！');
-            logLevelTime(secs);
-            document.getElementById('upgrade').disabled = (grid>=5);
-          }, 60);
+            initUI();
+          }, 2000);
         }
       } else {
         errors++;
+        levelErrorCount++;
         el.classList.add('bad');
         setTimeout(()=>{ el.classList.remove('bad'); }, 300);
-        postProgress();
         updatePanel();
       }
     }
-    function cellSize(){ return grid===3?80:(grid===4?70:60); }
+
+    // 记录轮次完成
+    async function finishRound(secs) {
+      console.log('🔵 [数字迷踪] 准备记录轮次完成', { roundId: currentRoundId, grid: `${grid}x${grid}`, secs, errors: levelErrorCount });
+      if (!currentRoundId) {
+        console.warn('⚠️ [数字迷踪] 没有currentRoundId，跳过轮次记录');
+        return;
+      }
+
+      const totalCells = grid * grid;
+      const accuracy = Math.round((levelSuccessCount / (levelSuccessCount + levelErrorCount)) * 100);
+      const score = Math.max(0, 100 - levelErrorCount * 10); // 每个错误扣10分
+
+      // 构建metadata JSON
+      const metadata = JSON.stringify({
+        grid_size: `${grid}x${grid}`,
+        total_cells: totalCells,
+        time_seconds: secs,
+        success_count: levelSuccessCount,
+        error_count: levelErrorCount
+      });
+
+      console.log('🔵 [数字迷踪] 发送轮次完成请求', { score, accuracy, duration: secs, metadata });
+      try {
+        const form = new URLSearchParams();
+        form.set('round_id', currentRoundId);
+        form.set('duration_seconds', secs); // 使用前端计算的准确时长
+        form.set('success', levelErrorCount === 0 ? '1' : '0');
+        form.set('score', score);
+        form.set('accuracy', accuracy);
+        form.set('metadata', metadata);
+
+        const response = await fetch('/api/session/round/finish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        console.log('✅ [数字迷踪] 轮次记录完成', data);
+      } catch (err) {
+        console.error('❌ [数字迷踪] 记录轮次失败:', err);
+      }
+    }
+
+    function cellSize(){
+      if (grid <= 3) return 80;
+      if (grid <= 5) return 70;
+      if (grid <= 7) return 55;
+      return 45;
+    }
+
     function startTimer(){
       startTs = Date.now();
       clearInterval(timerId);
@@ -84,19 +258,33 @@
         document.getElementById('elapsed').textContent = secs+' 秒';
       }, 500);
     }
-    function logLevelTime(secs){
-      const note = `数字迷踪 ${grid}x${grid} 用时 ${secs}s`;
-      const form = new URLSearchParams();
-      form.set('id', sessionId);
-      form.set('success', success);
-      form.set('errors', errors);
-      form.set('notes', note);
-      form.set('append', '1');
-      fetch('/api/session/update', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form});
+
+    function changeLevel(){
+      const selector = document.getElementById('levelSelector');
+      grid = parseInt(selector.value);
+      initUI();
+      // 聚焦选择器，让用户看到选择效果
+      selector.focus();
     }
-    function upgrade(){ if(grid<5){ grid++; build(); } }
-    function setLevel(n){ grid=n; build(); }
-    document.addEventListener('DOMContentLoaded', ()=>{ build(); });
+
+    function showSuccessMessage(secs){
+      const board = document.getElementById('board');
+      const accuracy = Math.round((levelSuccessCount / (levelSuccessCount + levelErrorCount)) * 100);
+      // 切换到flex布局用于显示消息
+      board.style.display = 'flex';
+      board.style.gridTemplateColumns = '';
+      board.innerHTML = `
+        <div class="success-msg">
+          <div class="icon">🎉</div>
+          <h2>你真棒！</h2>
+          <p>用时 ${secs} 秒</p>
+          <p>准确率 ${accuracy}%</p>
+          <p style="font-size: 0.9rem; opacity: 0.9;">正在准备下一轮...</p>
+        </div>
+      `;
+    }
+
+    document.addEventListener('DOMContentLoaded', ()=>{ initUI(); });
   </script>
 </head>
 <body>
@@ -107,21 +295,50 @@
     </nav>
   </header>
   <section class="panel">
-    <p class="big">等级：<strong id="level">3×3</strong> ｜ 计时：<strong id="elapsed">0 秒</strong></p>
-    <p>请按顺序点击数字：下一个是 <strong id="next">1</strong></p>
-    <p>完成次数：<strong id="succ">0</strong>，错误次数：<strong id="err">0</strong></p>
+    <div class="info-bar">
+      <div class="info-item">
+        <span class="info-label">难度</span>
+        <span class="info-value" id="level">3×3</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">计时</span>
+        <span class="info-value timer" id="elapsed">0 秒</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">下一个</span>
+        <span class="info-value" id="next">1</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">完成</span>
+        <span class="info-value" style="color: #49c36b;" id="succ">0</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">错误</span>
+        <span class="info-value" style="color: #e24a68;" id="err">0</span>
+      </div>
+    </div>
+
     <div class="controls">
-      <span>选择等级：</span>
-      <button onclick="setLevel(3)">3×3</button>
-      <button onclick="setLevel(4)">4×4</button>
-      <button onclick="setLevel(5)">5×5</button>
-      <button id="upgrade" onclick="upgrade()" title="完成当前等级后可继续升级">升级</button>
+      <label for="levelSelector" style="font-weight: 600; color: #667eea;">🎯 选择难度：</label>
+      <select id="levelSelector" class="levelSelector" onchange="changeLevel()">
+        <option value="3">3×3 (简单)</option>
+        <option value="4">4×4 (普通)</option>
+        <option value="5">5×5 (中等)</option>
+        <option value="6">6×6 (困难)</option>
+        <option value="7">7×7 (挑战)</option>
+        <option value="8">8×8 (高手)</option>
+        <option value="9">9×9 (专家)</option>
+        <option value="10">10×10 (大师)</option>
+      </select>
+    </div>
+    <div>
+      <button id="startBtn" class="startBtn" onclick="startGame()">🚀 开始训练</button>
     </div>
     <div id="board" class="board" aria-label="number grid"></div>
-    <div style="margin-top:1rem">
+    <div style="margin-top:0.5rem">
       <form action="/session/finish" method="post" style="display:inline">
         <input type="hidden" name="id" value="{{.ID}}" />
-        <button type="submit" style="background:#4ab3e2">结束训练</button>
+        <button type="submit" style="background:linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color:white; border:none; padding:8px 20px; border-radius:20px; cursor:pointer; font-weight:600; font-size:0.9rem;">结束训练</button>
       </form>
     </div>
   </section>

@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -64,10 +65,17 @@ func main() {
 	mux.HandleFunc("/training", handleTraining)
 	mux.HandleFunc("/session/start", handleSessionStart)
 	mux.HandleFunc("/session", handleSession)
-	mux.HandleFunc("/session/update", handleSessionUpdate)
 	mux.HandleFunc("/session/finish", handleSessionFinish)
 	mux.HandleFunc("/reports/daily", handleReportsDaily)
-	mux.HandleFunc("/api/session/update", handleSessionUpdateJSON)
+	mux.HandleFunc("/reports/daily/v2", handleReportsDailyV2)
+	mux.HandleFunc("/training/stats/", handleTrainingStats)
+	mux.HandleFunc("/test/cup-ball", func(w http.ResponseWriter, r *http.Request) {
+		renderTemplate(w, "test_cup_ball.html", nil)
+	})
+	mux.HandleFunc("/api/session/round/start", handleRoundStart)
+	mux.HandleFunc("/api/session/round/finish", handleRoundFinish)
+	mux.HandleFunc("/api/stats/daily", handleStatsDaily)
+	mux.HandleFunc("/api/stats/training/", handleStatsTraining)
 	mux.HandleFunc("/play/balance-hero", handlePlayBalance)
 	mux.HandleFunc("/play/number-trace", handlePlayNumberTrace)
 	mux.HandleFunc("/play/memory-cards", handlePlayMemory)
@@ -76,6 +84,7 @@ func main() {
 	mux.HandleFunc("/play/color-match", handlePlayColorMatch)
 	mux.HandleFunc("/play/eagle-eye", handlePlayEagleEye)
 	mux.HandleFunc("/play/cup-ball", handlePlayCupBall)
+	mux.HandleFunc("/play/fish-adventure", handlePlayFishAdventure)
 
 	// Static files (serve from embedded web/static)
 	var subErr error
@@ -119,7 +128,24 @@ func migrate(db *sql.DB) error {
             success_count INTEGER DEFAULT 0,
             error_count INTEGER DEFAULT 0,
             notes TEXT,
+            level TEXT,
+            status TEXT DEFAULT 'in_progress',
+            completed_rounds INTEGER DEFAULT 0,
+            total_rounds INTEGER DEFAULT 0,
             FOREIGN KEY(training_id) REFERENCES trainings(id)
+        );`,
+		`CREATE TABLE IF NOT EXISTS session_rounds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL,
+            round_number INTEGER NOT NULL,
+            started_at DATETIME NOT NULL,
+            ended_at DATETIME,
+            duration_seconds INTEGER,
+            success BOOLEAN DEFAULT 0,
+            score INTEGER DEFAULT 0,
+            accuracy REAL DEFAULT 0,
+            metadata TEXT,
+            FOREIGN KEY(session_id) REFERENCES sessions(id)
         );`,
 	}
 	for _, s := range stmts {
@@ -149,6 +175,38 @@ func migrate(db *sql.DB) error {
 			log.Printf("alter add slug: %v", err)
 		}
 	}
+
+	// 迁移sessions表：添加新字段
+	addColumnIfNotExists := func(table, column, definition string) {
+		var hasCol bool
+		r, e := db.Query(fmt.Sprintf(`PRAGMA table_info(%s)`, table))
+		if e == nil {
+			defer r.Close()
+			for r.Next() {
+				var cid int
+				var name, ctype string
+				var notnull, pk int
+				var dflt sql.NullString
+				_ = r.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk)
+				if strings.EqualFold(name, column) {
+					hasCol = true
+					break
+				}
+			}
+		}
+		if !hasCol {
+			sql := fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, table, column, definition)
+			if _, err := db.Exec(sql); err != nil {
+				log.Printf("alter add %s.%s: %v", table, column, err)
+			}
+		}
+	}
+
+	addColumnIfNotExists("sessions", "level", "TEXT")
+	addColumnIfNotExists("sessions", "status", "TEXT DEFAULT 'in_progress'")
+	addColumnIfNotExists("sessions", "completed_rounds", "INTEGER DEFAULT 0")
+	addColumnIfNotExists("sessions", "total_rounds", "INTEGER DEFAULT 0")
+
 	return nil
 }
 
@@ -194,6 +252,9 @@ func seedTrainings(db *sql.DB) error {
 	if err := ensure("眼疾手快", "cup-ball", "观察球在哪个杯子下，记住杯子交换过程，考验记忆力与专注力。", "观察/记忆", 8); err != nil {
 		return err
 	}
+	if err := ensure("小鱼历险记", "fish-adventure", "根据规则吞噬正确的鱼，训练规则记忆、抑制控制与认知灵活性。", "专注/认知", 10); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -210,27 +271,61 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		ID             int
 		Name, Category string
 		Suggested      int
+		TodayMinutes   int // 今天训练的分钟数
+		TodayRounds    int // 今天训练的轮次数
 	}
-	rows, err := db.Query("SELECT id, name, category, suggested_minutes FROM trainings WHERE active=1 ORDER BY id")
+
+	// 获取今天的日期
+	today := time.Now().Format("2006-01-02")
+
+	// 使用LEFT JOIN查询所有训练项目及其今天的统计数据
+	query := `
+		SELECT
+			t.id,
+			t.name,
+			t.category,
+			t.suggested_minutes,
+			COALESCE(SUM(sr.duration_seconds), 0) as today_seconds,
+			COALESCE(COUNT(sr.id), 0) as today_rounds
+		FROM trainings t
+		LEFT JOIN sessions s ON t.id = s.training_id AND substr(s.started_at, 1, 10) = ?
+		LEFT JOIN session_rounds sr ON s.id = sr.session_id
+		WHERE t.active = 1
+		GROUP BY t.id, t.name, t.category, t.suggested_minutes
+		ORDER BY t.id
+	`
+
+	rows, err := db.Query(query, today)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
 	defer rows.Close()
+
 	var list []Training
 	for rows.Next() {
 		var t Training
-		if err := rows.Scan(&t.ID, &t.Name, &t.Category, &t.Suggested); err != nil {
+		var todaySeconds int
+		if err := rows.Scan(&t.ID, &t.Name, &t.Category, &t.Suggested, &todaySeconds, &t.TodayRounds); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
+		t.TodayMinutes = todaySeconds / 60
 		list = append(list, t)
 	}
-	// Today summary
-	today := time.Now().Format("2006-01-02")
+
+	// 计算今日总训练时长
 	var totalSec int
-	_ = db.QueryRow(`SELECT COALESCE(SUM(duration_seconds),0) FROM sessions WHERE date(started_at)=?`, today).Scan(&totalSec)
-	renderTemplate(w, "index.html", map[string]any{"Trainings": list, "TotalSecs": totalSec, "TotalMin": totalSec / 60, "Today": today})
+	for _, t := range list {
+		totalSec += t.TodayMinutes * 60
+	}
+
+	renderTemplate(w, "index.html", map[string]any{
+		"Trainings": list,
+		"TotalSecs": totalSec,
+		"TotalMin":  totalSec / 60,
+		"Today":     today,
+	})
 }
 
 func handleTrainings(w http.ResponseWriter, r *http.Request) {
@@ -354,63 +449,6 @@ func handleSession(w http.ResponseWriter, r *http.Request) {
 	}(), "Success": success, "Errors": errorCnt})
 }
 
-func handleSessionUpdate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-	id, _ := parseInt(r.FormValue("id"))
-	if id == 0 {
-		http.Error(w, "missing id", 400)
-		return
-	}
-	success, _ := parseInt(r.FormValue("success"))
-	errors, _ := parseInt(r.FormValue("errors"))
-	notes := strings.TrimSpace(r.FormValue("notes"))
-	if _, err := db.Exec(`UPDATE sessions SET success_count=?, error_count=?, notes=? WHERE id=?`, success, errors, notes, id); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	http.Redirect(w, r, fmt.Sprintf("/session?id=%d", id), http.StatusSeeOther)
-}
-
-// JSON/form lightweight API for in-game updates
-func handleSessionUpdateJSON(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-	id, _ := parseInt(r.FormValue("id"))
-	if id == 0 {
-		http.Error(w, "missing id", 400)
-		return
-	}
-	success, _ := parseInt(r.FormValue("success"))
-	errors, _ := parseInt(r.FormValue("errors"))
-	notes := strings.TrimSpace(r.FormValue("notes"))
-	appendFlag := strings.TrimSpace(r.FormValue("append"))
-	if appendFlag == "1" && notes != "" {
-		var old sql.NullString
-		_ = db.QueryRow(`SELECT notes FROM sessions WHERE id=?`, id).Scan(&old)
-		if old.Valid && old.String != "" {
-			notes = old.String + "\n" + notes
-		}
-	}
-	if _, err := db.Exec(`UPDATE sessions SET success_count=?, error_count=?, notes=? WHERE id=?`, success, errors, notes, id); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"ok":true}`))
-}
 
 // Play pages
 func handlePlayBalance(w http.ResponseWriter, r *http.Request) {
@@ -520,6 +558,19 @@ func handlePlayCupBall(w http.ResponseWriter, r *http.Request) {
 	renderTemplate(w, "play_cup_ball.html", map[string]any{"ID": id, "TrainingName": name})
 }
 
+func handlePlayFishAdventure(w http.ResponseWriter, r *http.Request) {
+	id, _ := parseInt(r.URL.Query().Get("id"))
+	if id == 0 {
+		http.Error(w, "missing id", 400)
+		return
+	}
+	var trainingID int
+	_ = db.QueryRow(`SELECT training_id FROM sessions WHERE id=?`, id).Scan(&trainingID)
+	var name string
+	_ = db.QueryRow(`SELECT name FROM trainings WHERE id=?`, trainingID).Scan(&name)
+	renderTemplate(w, "play_fish_adventure.html", map[string]any{"ID": id, "TrainingName": name})
+}
+
 func handleSessionFinish(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -572,6 +623,307 @@ func handleReportsDaily(w http.ResponseWriter, r *http.Request) {
 		list = append(list, d)
 	}
 	renderTemplate(w, "reports_daily.html", map[string]any{"Days": list})
+}
+
+// handleReportsDailyV2 显示增强版每日报表页面
+func handleReportsDailyV2(w http.ResponseWriter, r *http.Request) {
+	renderTemplate(w, "reports_daily_v2.html", nil)
+}
+
+// handleTrainingStats 显示训练项目统计页面
+func handleTrainingStats(w http.ResponseWriter, r *http.Request) {
+	// 从URL路径中提取training_id
+	path := r.URL.Path
+	idStr := strings.TrimPrefix(path, "/training/stats/")
+	trainingID, err := parseInt(idStr)
+	if err != nil || trainingID == 0 {
+		http.Error(w, "invalid training id", 400)
+		return
+	}
+
+	// 获取训练项目信息
+	var trainingName string
+	err = db.QueryRow(`SELECT name FROM trainings WHERE id=?`, trainingID).Scan(&trainingName)
+	if err != nil {
+		http.Error(w, "training not found", 404)
+		return
+	}
+
+	renderTemplate(w, "training_stats.html", map[string]any{
+		"TrainingID":   trainingID,
+		"TrainingName": trainingName,
+	})
+}
+
+// handleRoundStart 开始新一轮训练
+func handleRoundStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+
+	sessionID, _ := parseInt(r.FormValue("session_id"))
+	roundNumber, _ := parseInt(r.FormValue("round_number"))
+	if sessionID == 0 || roundNumber == 0 {
+		http.Error(w, "missing session_id or round_number", 400)
+		return
+	}
+
+	now := time.Now()
+	res, err := db.Exec(`INSERT INTO session_rounds(session_id, round_number, started_at) VALUES(?,?,?)`, sessionID, roundNumber, now)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	roundID, _ := res.LastInsertId()
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"ok":true,"round_id":%d}`, roundID)
+}
+
+// handleRoundFinish 结束一轮训练
+func handleRoundFinish(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+
+	roundID, _ := parseInt(r.FormValue("round_id"))
+	if roundID == 0 {
+		http.Error(w, "missing round_id", 400)
+		return
+	}
+
+	success := r.FormValue("success") == "1" || r.FormValue("success") == "true"
+	score, _ := parseInt(r.FormValue("score"))
+	accuracy := 0.0
+	if acc := r.FormValue("accuracy"); acc != "" {
+		if f, err := strconv.ParseFloat(acc, 64); err == nil {
+			accuracy = f
+		}
+	}
+	metadata := strings.TrimSpace(r.FormValue("metadata"))
+
+	// 优先使用前端传来的准确时长，如果没有则自动计算
+	duration, _ := parseInt(r.FormValue("duration_seconds"))
+	if duration == 0 {
+		// 获取开始时间计算时长（回退方案）
+		var startedAt time.Time
+		if err := db.QueryRow(`SELECT started_at FROM session_rounds WHERE id=?`, roundID).Scan(&startedAt); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		duration = int(time.Now().Sub(startedAt).Seconds())
+	}
+
+	endedAt := time.Now()
+
+	_, err := db.Exec(`UPDATE session_rounds SET ended_at=?, duration_seconds=?, success=?, score=?, accuracy=?, metadata=? WHERE id=?`,
+		endedAt, duration, success, score, accuracy, metadata, roundID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
+}
+
+// handleStatsDaily 获取每日统计数据
+func handleStatsDaily(w http.ResponseWriter, r *http.Request) {
+	date := r.URL.Query().Get("date")
+	if date == "" {
+		date = time.Now().Format("2006-01-02")
+	}
+
+	// 获取当日按训练项目聚合的统计数据（从session_rounds表）
+	type TrainingStat struct {
+		TrainingID   int     `json:"training_id"`
+		TrainingName string  `json:"name"`
+		TotalRounds  int     `json:"total_rounds"`
+		TotalSeconds int     `json:"total_seconds"`
+		AvgScore     float64 `json:"avg_score"`
+		AvgAccuracy  float64 `json:"avg_accuracy"`
+		SuccessRate  float64 `json:"success_rate"`
+	}
+
+	rows, err := db.Query(`
+		SELECT
+			t.id,
+			t.name,
+			COUNT(sr.id) as total_rounds,
+			COALESCE(SUM(sr.duration_seconds), 0) as total_seconds,
+			COALESCE(AVG(sr.score), 0) as avg_score,
+			COALESCE(AVG(sr.accuracy), 0) as avg_accuracy,
+			COALESCE(AVG(CASE WHEN sr.success = 1 THEN 100.0 ELSE 0.0 END), 0) as success_rate
+		FROM trainings t
+		JOIN sessions s ON t.id = s.training_id
+		JOIN session_rounds sr ON s.id = sr.session_id
+		WHERE substr(s.started_at, 1, 10) = ?
+		GROUP BY t.id, t.name
+		ORDER BY t.name
+	`, date)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	defer rows.Close()
+
+	var trainings []TrainingStat
+	totalDuration := 0
+	totalRounds := 0
+	for rows.Next() {
+		var t TrainingStat
+		if err := rows.Scan(&t.TrainingID, &t.TrainingName, &t.TotalRounds, &t.TotalSeconds,
+			&t.AvgScore, &t.AvgAccuracy, &t.SuccessRate); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		totalDuration += t.TotalSeconds
+		totalRounds += t.TotalRounds
+		trainings = append(trainings, t)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	type Response struct {
+		Date          string         `json:"date"`
+		TotalDuration int            `json:"total_duration"`
+		TotalMinutes  int            `json:"total_minutes"`
+		TotalRounds   int            `json:"total_rounds"`
+		Trainings     []TrainingStat `json:"trainings"`
+	}
+	resp := Response{
+		Date:          date,
+		TotalDuration: totalDuration,
+		TotalMinutes:  totalDuration / 60,
+		TotalRounds:   totalRounds,
+		Trainings:     trainings,
+	}
+
+	// 简单的JSON编码
+	jsonData, _ := json.Marshal(resp)
+	w.Write(jsonData)
+}
+
+// handleStatsTraining 获取训练项目统计
+func handleStatsTraining(w http.ResponseWriter, r *http.Request) {
+	// 从URL路径提取training_id
+	path := r.URL.Path
+	idStr := strings.TrimPrefix(path, "/api/stats/training/")
+	trainingID, _ := parseInt(idStr)
+	if trainingID == 0 {
+		http.Error(w, "missing training_id", 400)
+		return
+	}
+
+	level := r.URL.Query().Get("level")
+	timeRange := r.URL.Query().Get("range") // 新增：today 或 days
+	days := 30
+
+	// 计算开始日期
+	var startDate string
+	if timeRange == "today" {
+		// 今天0点开始 - 只比较日期部分
+		now := time.Now()
+		startDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Format("2006-01-02")
+	} else {
+		// 最近N天
+		if d := r.URL.Query().Get("days"); d != "" {
+			if n, err := strconv.Atoi(d); err == nil && n > 0 {
+				days = n
+			}
+		}
+		startDate = time.Now().AddDate(0, 0, -days).Format("2006-01-02")
+	}
+
+	// 获取训练项目信息
+	var trainingName string
+	if err := db.QueryRow(`SELECT name FROM trainings WHERE id=?`, trainingID).Scan(&trainingName); err != nil {
+		http.Error(w, "training not found", 404)
+		return
+	}
+
+	query := `
+		SELECT sr.round_number, sr.started_at, sr.duration_seconds, sr.success, sr.score, sr.accuracy, sr.metadata
+		FROM session_rounds sr
+		JOIN sessions s ON sr.session_id = s.id
+		WHERE s.training_id = ? AND substr(sr.started_at, 1, 10) >= ?
+	`
+	args := []any{trainingID, startDate}
+
+	// 只有明确指定level时才过滤，空字符串表示查询全部
+	if level != "" && level != "all" {
+		query += ` AND s.level = ?`
+		args = append(args, level)
+	}
+
+	query += ` ORDER BY sr.started_at DESC LIMIT 100`
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	defer rows.Close()
+
+	type RoundData struct {
+		RoundNumber int     `json:"round_number"`
+		StartedAt   string  `json:"started_at"`
+		Duration    int     `json:"duration"`
+		Success     bool    `json:"success"`
+		Score       int     `json:"score"`
+		Accuracy    float64 `json:"accuracy"`
+		Metadata    string  `json:"metadata"`
+	}
+
+	var rounds []RoundData
+	for rows.Next() {
+		var r RoundData
+		var success int
+		var duration sql.NullInt64
+		var score sql.NullInt64
+		var accuracy sql.NullFloat64
+		var metadata sql.NullString
+		if err := rows.Scan(&r.RoundNumber, &r.StartedAt, &duration, &success, &score, &accuracy, &metadata); err != nil {
+			log.Printf("扫描行出错: %v", err)
+			continue
+		}
+		r.Success = success == 1
+		r.Duration = int(duration.Int64)
+		r.Score = int(score.Int64)
+		r.Accuracy = accuracy.Float64
+		if metadata.Valid {
+			r.Metadata = metadata.String
+		}
+		rounds = append(rounds, r)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	type Response struct {
+		TrainingID   int         `json:"training_id"`
+		TrainingName string      `json:"training_name"`
+		Level        string      `json:"level"`
+		Days         int         `json:"days"`
+		Rounds       []RoundData `json:"rounds"`
+	}
+	resp := Response{
+		TrainingID:   trainingID,
+		TrainingName: trainingName,
+		Level:        level,
+		Days:         days,
+		Rounds:       rounds,
+	}
+
+	jsonData, _ := json.Marshal(resp)
+	w.Write(jsonData)
 }
 
 // Template rendering

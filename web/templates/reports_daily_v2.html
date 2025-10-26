@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>每日训练成果</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    .stats-container {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 1rem;
+    }
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .card h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+    .card .value {
+      font-size: 2rem;
+      font-weight: bold;
+      margin: 0;
+    }
+    .card .unit {
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+    .sessions-list {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 2rem;
+    }
+    .sessions-list h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    .session-item {
+      padding: 1rem;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .session-item:last-child {
+      border-bottom: none;
+    }
+    .session-info {
+      flex: 1;
+    }
+    .session-name {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 0.25rem;
+    }
+    .session-details {
+      font-size: 0.85rem;
+      color: #666;
+    }
+    .session-stats {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+    .stat-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .stat-success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .stat-error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .stat-accuracy {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+    .level-badge {
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-left: 0.5rem;
+    }
+    .level-easy { background: #d4edda; color: #155724; }
+    .level-medium { background: #fff3cd; color: #856404; }
+    .level-hard { background: #f8d7da; color: #721c24; }
+    .date-selector {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .date-selector input {
+      padding: 0.5rem 1rem;
+      border: 2px solid #667eea;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+    .date-selector button {
+      padding: 0.5rem 1.5rem;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-left: 0.5rem;
+    }
+    .date-selector button:hover {
+      background: #5568d3;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📊 每日训练成果</h1>
+    <nav>
+      <a href="/">首页</a>
+      <a href="/trainings">训练项目</a>
+    </nav>
+  </header>
+
+  <div class="stats-container">
+    <div class="date-selector">
+      <input type="date" id="dateInput" />
+      <button onclick="loadData()">查看</button>
+      <button onclick="loadToday()">今天</button>
+    </div>
+
+    <div class="summary-cards">
+      <div class="card">
+        <h3>训练时长</h3>
+        <p class="value"><span id="totalDuration">0</span> <span class="unit">分钟</span></p>
+      </div>
+      <div class="card">
+        <h3>训练次数</h3>
+        <p class="value"><span id="totalSessions">0</span> <span class="unit">次</span></p>
+      </div>
+      <div class="card">
+        <h3>总轮次</h3>
+        <p class="value"><span id="totalRounds">0</span> <span class="unit">轮</span></p>
+      </div>
+      <div class="card">
+        <h3>平均准确率</h3>
+        <p class="value"><span id="avgAccuracy">0</span><span class="unit">%</span></p>
+      </div>
+    </div>
+
+    <div class="sessions-list">
+      <h2>训练明细</h2>
+      <div id="sessionsList">
+        <div class="empty-state">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 页面加载时默认显示今天
+    window.addEventListener('DOMContentLoaded', () => {
+      loadToday();
+    });
+
+    function loadToday() {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('dateInput').value = today;
+      loadData();
+    }
+
+    async function loadData() {
+      const date = document.getElementById('dateInput').value || new Date().toISOString().split('T')[0];
+
+      try {
+        const response = await fetch(`/api/stats/daily?date=${date}`);
+        const data = await response.json();
+
+        console.log('📊 加载每日数据:', data);
+
+        // 更新汇总卡片
+        document.getElementById('totalDuration').textContent = data.total_minutes || 0;
+        document.getElementById('totalSessions').textContent = data.trainings ? data.trainings.length : 0;
+        document.getElementById('totalRounds').textContent = data.total_rounds || 0;
+
+        // 计算平均准确率
+        let avgAccuracy = 0;
+        if (data.trainings && data.trainings.length > 0) {
+          const totalAccuracy = data.trainings.reduce((sum, t) => sum + t.avg_accuracy, 0);
+          avgAccuracy = Math.round(totalAccuracy / data.trainings.length);
+        }
+        document.getElementById('avgAccuracy').textContent = avgAccuracy;
+
+        // 渲染训练项目列表
+        renderTrainings(data.trainings || []);
+      } catch (err) {
+        console.error('❌ 加载数据失败:', err);
+        document.getElementById('sessionsList').innerHTML =
+          '<div class="empty-state">加载失败，请刷新重试</div>';
+      }
+    }
+
+    function renderTrainings(trainings) {
+      const container = document.getElementById('sessionsList');
+
+      if (trainings.length === 0) {
+        container.innerHTML = '<div class="empty-state">这天还没有训练记录哦！</div>';
+        return;
+      }
+
+      container.innerHTML = trainings.map(training => {
+        const minutes = Math.floor(training.total_seconds / 60);
+        const seconds = training.total_seconds % 60;
+        const timeText = minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`;
+
+        return `
+          <div class="session-item">
+            <div class="session-info">
+              <div class="session-name">
+                ${training.name}
+              </div>
+              <div class="session-details">
+                ${training.total_rounds}轮 · ${timeText}
+              </div>
+            </div>
+            <div class="session-stats">
+              <span class="stat-badge stat-success">得分 ${Math.round(training.avg_score)}</span>
+              <span class="stat-badge stat-accuracy">准确率 ${Math.round(training.avg_accuracy)}%</span>
+              <span class="stat-badge ${training.success_rate >= 70 ? 'stat-success' : 'stat-error'}">
+                成功率 ${Math.round(training.success_rate)}%
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  </script>
+</body>
+</html>

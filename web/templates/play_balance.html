@@ -5,6 +5,37 @@
   <title>平衡超人 - {{.TrainingName}}</title>
   <link rel="stylesheet" href="/static/app.css" />
   <style>
+    /* Header优化 - 紧凑布局 */
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 10px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    header h1 {
+      font-size: 1.5rem;
+      margin: 0;
+      color: white;
+      display: inline-block;
+    }
+    header nav {
+      display: inline-block;
+      float: right;
+      margin-top: 5px;
+    }
+    header nav a {
+      color: white;
+      text-decoration: none;
+      background: rgba(255,255,255,0.2);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      transition: all 0.3s;
+    }
+    header nav a:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+
     .hero { display:flex; align-items:center; justify-content:center; margin-top: 1rem; }
     .kid { width: 160px; height: 220px; background: linear-gradient(#ffe0e0,#fff); border: 3px solid #ff8aa0; border-radius: 16px; position: relative; }
     .kid::before { content:""; position:absolute; left:50%; top:20%; width:60px; height:60px; margin-left:-30px; border-radius:50%; background:#ffd36b; border:2px solid #f2ae2e; }
@@ -12,48 +43,200 @@
     .stage { text-align:center; }
     .big { font-size: 2rem; font-weight: 800; color: #e24a68; }
     .btns { display:flex; gap: 12px; justify-content:center; margin-top: 1rem; }
-    .round { font-size:1.2rem; color:#555; }
+
+    /* 信息栏样式 - 统一样式 */
+    .info-bar { background: #f8f9fa; padding: 10px; border-radius: 12px; margin: 10px auto; max-width: 600px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
+    .info-item { display: inline-block; }
+    .info-label { font-size: 0.85rem; color: #666; display: block; }
+    .info-value { font-size: 1.3rem; font-weight: 700; color: #4a90e2; }
+    .timer { font-size: 2rem; font-weight: 900; color: #e24a68; }
+
+    /* 欢迎提示 */
+    .welcome-message {
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      padding: 3rem 2rem;
+      border-radius: 20px;
+      margin: 1.5rem auto;
+      max-width: 600px;
+      text-align: center;
+    }
+    .welcome-message h2 {
+      color: #667eea;
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
+    .welcome-message p {
+      color: #555;
+      font-size: 1.1rem;
+      line-height: 1.6;
+    }
+
+    /* 开始按钮 */
+    .start-btn {
+      padding: 0.8rem 2rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-radius: 10px;
+      border: none;
+      background: #28a745;
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin: 1rem 0;
+    }
+    .start-btn:hover {
+      background: #218838;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    }
   </style>
   <script>
     let sessionId = {{.ID}};
-    let side = 'left';
-    let round = 1;
-    let seconds = 30; // each round seconds
-    let countdown = seconds;
-    let timer;
-    let success=0, errors=0;
+    let currentSide = 'left'; // 当前训练哪只脚
+    let elapsedTime = 0; // 当前计时（秒）
+    let timer = null;
+    let leftSuccess = 0, leftErrors = 0; // 左脚统计
+    let rightSuccess = 0, rightErrors = 0; // 右脚统计
+    let currentRoundId = 0;
+    let roundStartTime = 0;
+    let isTraining = false; // 是否正在训练（计时中）
 
     function updateUI(){
-      document.getElementById('side').textContent = (side==='left'?'左脚':'右脚');
-      document.getElementById('round').textContent = '第 '+round+' 轮';
-      document.getElementById('count').textContent = countdown+' 秒';
-      document.getElementById('succ').textContent = success;
-      document.getElementById('err').textContent = errors;
+      // 更新左脚统计
+      document.getElementById('leftSuccess').textContent = leftSuccess;
+      document.getElementById('leftErrors').textContent = leftErrors;
+
+      // 更新右脚统计
+      document.getElementById('rightSuccess').textContent = rightSuccess;
+      document.getElementById('rightErrors').textContent = rightErrors;
+
+      // 更新计时显示
+      document.getElementById('timeDisplay').textContent = elapsedTime + ' 秒';
+
+      // 更新按钮状态
+      updateButtonStates();
     }
-    function postProgress(){
-      const form = new URLSearchParams();
-      form.set('id', sessionId);
-      form.set('success', success);
-      form.set('errors', errors);
-      fetch('/api/session/update', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: form});
+
+    function updateButtonStates() {
+      const leftBtn = document.getElementById('leftFootBtn');
+      const rightBtn = document.getElementById('rightFootBtn');
+      const endBtn = document.getElementById('endCurrentBtn');
+
+      if (!isTraining) {
+        // 未训练时，两个脚按钮都可用
+        leftBtn.disabled = false;
+        rightBtn.disabled = false;
+        leftBtn.classList.remove('active');
+        rightBtn.classList.remove('active');
+        endBtn.style.display = 'none';
+      } else {
+        // 训练中，只有当前脚按钮高亮，结束按钮显示
+        leftBtn.disabled = (currentSide !== 'left');
+        rightBtn.disabled = (currentSide !== 'right');
+
+        if (currentSide === 'left') {
+          leftBtn.classList.add('active');
+          rightBtn.classList.remove('active');
+        } else {
+          rightBtn.classList.add('active');
+          leftBtn.classList.remove('active');
+        }
+
+        endBtn.style.display = 'inline-block';
+      }
     }
-    function nextRound(){
-      side = (side==='left')?'right':'left';
-      round++;
-      countdown = seconds;
+
+    // 开始训练某只脚
+    async function startFoot(side) {
+      if (isTraining) return; // 已经在训练中
+
+      currentSide = side;
+      isTraining = true;
+      elapsedTime = 0;
+      roundStartTime = Date.now();
+
+      // 开始API轮次记录
+      try {
+        const form = new URLSearchParams();
+        form.set('session_id', sessionId);
+        form.set('round_number', (leftSuccess + leftErrors + rightSuccess + rightErrors + 1));
+        const response = await fetch('/api/session/round/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        currentRoundId = data.round_id;
+        console.log('✅ [平衡超人] 开始训练', side + '脚', { roundId: currentRoundId });
+      } catch (err) {
+        console.error('❌ [平衡超人] 开始轮次失败:', err);
+      }
+
+      // 开始计时
+      clearInterval(timer);
+      timer = setInterval(() => {
+        elapsedTime++;
+        updateUI();
+      }, 1000);
+
       updateUI();
     }
-    function startTimer(){
+
+    // 结束当前训练（完成）
+    async function endCurrent() {
+      if (!isTraining) return;
+
+      // 停止计时
       clearInterval(timer);
-      countdown = seconds;
-      timer = setInterval(()=>{
-        countdown--; updateUI();
-        if(countdown<=0){ clearInterval(timer); document.getElementById('doneSound').play(); }
-      },1000);
+      isTraining = false;
+
+      // 记录结果（只有完成，没有失败）
+      if (currentSide === 'left') {
+        leftSuccess++;
+      } else {
+        rightSuccess++;
+      }
+
+      // 上报API
+      if (currentRoundId) {
+        const duration = Math.floor((Date.now() - roundStartTime) / 1000);
+        const metadata = JSON.stringify({
+          side: currentSide,
+          elapsed_seconds: elapsedTime,
+          actual_duration: duration,
+          completed: true
+        });
+
+        try {
+          const form = new URLSearchParams();
+          form.set('round_id', currentRoundId);
+          form.set('duration_seconds', duration);
+          form.set('success', '1');
+          form.set('score', 100);
+          form.set('accuracy', 100);
+          form.set('metadata', metadata);
+
+          await fetch('/api/session/round/finish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: form
+          });
+          console.log('✅ [平衡超人] 训练记录完成', { side: currentSide, duration });
+        } catch (err) {
+          console.error('❌ [平衡超人] 记录失败:', err);
+        }
+
+        currentRoundId = 0;
+      }
+
+      // 重置计时
+      elapsedTime = 0;
+      updateUI();
     }
-    function markSuccess(){ success++; postProgress(); nextRound(); startTimer(); }
-    function markError(){ errors++; postProgress(); nextRound(); startTimer(); }
-    document.addEventListener('DOMContentLoaded', ()=>{ updateUI(); startTimer(); });
+
+    document.addEventListener('DOMContentLoaded', ()=>{
+      updateUI();
+    });
   </script>
 </head>
 <body>
@@ -64,21 +247,88 @@
     </nav>
   </header>
   <section class="stage">
-    <p class="round" id="round">第 1 轮</p>
-    <p class="big">请用 <span id="side">左脚</span> 独立站立</p>
-    <p>倒计时：<strong id="count">30 秒</strong></p>
-    <div class="hero"><div class="kid" aria-label="cartoon kid"></div></div>
-    <div class="btns">
-      <button onclick="markSuccess()">完成</button>
-      <button onclick="markError()" style="background:#e24a68">失败</button>
+    <h2 style="text-align: center; color: #667eea; margin-top: 2rem;">🦸 平衡超人训练</h2>
+
+    <!-- 计时显示 -->
+    <div style="text-align: center; margin: 2rem 0;">
+      <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">⏱️ 当前计时</div>
+      <div id="timeDisplay" class="big" style="font-size: 3rem;">0 秒</div>
+    </div>
+
+    <!-- 左右脚按钮 -->
+    <div style="display: flex; gap: 2rem; justify-content: center; margin: 2rem 0;">
+      <!-- 左脚 -->
+      <div style="text-align: center;">
+        <button id="leftFootBtn" onclick="startFoot('left')"
+                style="padding: 2rem 3rem; font-size: 1.5rem; font-weight: 700;
+                       border-radius: 20px; border: 3px solid #28a745;
+                       background: white; color: #28a745; cursor: pointer;
+                       transition: all 0.3s;">
+          🦶 左脚
+        </button>
+        <div style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
+          ✅ <span id="leftSuccess">0</span> 次
+          ❌ <span id="leftErrors">0</span> 次
+        </div>
+      </div>
+
+      <!-- 右脚 -->
+      <div style="text-align: center;">
+        <button id="rightFootBtn" onclick="startFoot('right')"
+                style="padding: 2rem 3rem; font-size: 1.5rem; font-weight: 700;
+                       border-radius: 20px; border: 3px solid #667eea;
+                       background: white; color: #667eea; cursor: pointer;
+                       transition: all 0.3s;">
+          🦶 右脚
+        </button>
+        <div style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
+          ✅ <span id="rightSuccess">0</span> 次
+          ❌ <span id="rightErrors">0</span> 次
+        </div>
+      </div>
+    </div>
+
+    <!-- 完成按钮（训练时显示） -->
+    <div style="text-align: center; margin: 2rem 0;">
+      <button id="endCurrentBtn" onclick="endCurrent()"
+              style="display: none; padding: 1rem 3rem; font-size: 1.2rem; font-weight: 600;
+                     border-radius: 12px; border: none; background: #28a745;
+                     color: white; cursor: pointer;">
+        ✅ 完成
+      </button>
+    </div>
+
+    <!-- 结束训练 -->
+    <div style="text-align: center; margin: 3rem 0;">
       <form action="/session/finish" method="post" style="display:inline">
         <input type="hidden" name="id" value="{{.ID}}" />
-        <button type="submit" style="background:#4ab3e2">结束训练</button>
+        <button type="submit" style="padding: 0.8rem 2rem; font-size: 1rem; font-weight: 600;
+                                      border-radius: 10px; border: none; background: #4ab3e2;
+                                      color: white; cursor: pointer;">
+          🏁 结束训练
+        </button>
       </form>
     </div>
-    <p>完成次数：<strong id="succ">0</strong>，错误次数：<strong id="err">0</strong></p>
+
+    <div class="hero"><div class="kid" aria-label="cartoon kid"></div></div>
+
+    <style>
+      #leftFootBtn.active {
+        background: #28a745 !important;
+        color: white !important;
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+      }
+      #rightFootBtn.active {
+        background: #667eea !important;
+        color: white !important;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed !important;
+      }
+    </style>
   </section>
-  <audio id="doneSound"><source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQgAAAA=" type="audio/wav"></audio>
 </body>
 </html>
 

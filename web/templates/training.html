@@ -17,10 +17,13 @@
     <p>类别：{{.Category}}</p>
     <p>建议时长：{{.Suggested}} 分钟</p>
     <p>说明：{{.Description}}</p>
-    <form action="/session/start" method="post">
-      <input type="hidden" name="training_id" value="{{.ID}}" />
-      <button type="submit">开始训练</button>
-    </form>
+    <div style="margin-top: 1.5rem;">
+      <form action="/session/start" method="post" style="display: inline;">
+        <input type="hidden" name="training_id" value="{{.ID}}" />
+        <button type="submit">开始训练</button>
+      </form>
+      <a href="/training/stats/{{.ID}}" style="margin-left: 1rem; padding: 0.5rem 1rem; background: #667eea; color: white; text-decoration: none; border-radius: 6px; display: inline-block;">📊 查看训练统计</a>
+    </div>
   </section>
 </body>
 </html>

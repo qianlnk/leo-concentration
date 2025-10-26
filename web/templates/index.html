@@ -11,7 +11,7 @@
       <h1>小小超能力训练营</h1>
       <nav>
         <a href="/trainings">训练项目</a>
-        <a href="/reports/daily">每日成果</a>
+        <a href="/reports/daily/v2">📊 每日报表</a>
       </nav>
     </div>
   </header>
@@ -37,12 +37,21 @@
         </div>
         <p class="muted">类别：{{.Category}}</p>
         <p class="muted">建议时长：{{.Suggested}} 分钟</p>
+        {{if gt .TodayRounds 0}}
+        <p class="muted" style="color: #667eea; font-weight: 600;">
+          ✨ 今天已训练：{{.TodayRounds}} 轮{{if gt .TodayMinutes 0}} ({{.TodayMinutes}} 分钟){{end}}
+        </p>
+        {{else}}
+        <p class="muted" style="color: #999;">
+          💤 今天还没训练哦
+        </p>
+        {{end}}
         <div class="actions">
-          <form action="/session/start" method="post">
+          <form action="/session/start" method="post" style="display: inline;">
             <input type="hidden" name="training_id" value="{{.ID}}" />
             <button type="submit" class="cta">开始训练</button>
           </form>
-          <a class="link" href="/training?id={{.ID}}">了解详情</a>
+          <a class="link" href="/training/stats/{{.ID}}" style="margin-left: 0.5rem;">📈 查看统计</a>
         </div>
       </div>
       {{end}}

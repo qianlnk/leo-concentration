@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>训练统计 - {{.TrainingName}}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <script src="/static/chart.umd.min.js"></script>
+  <style>
+    .stats-container {
+      max-width: 1400px;
+      margin: 2rem auto;
+      padding: 1rem;
+    }
+    .header-section {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .header-section h1 {
+      color: #333;
+      margin-bottom: 0.5rem;
+    }
+    .filters {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      align-items: center;
+      margin: 1.5rem 0;
+      flex-wrap: wrap;
+    }
+    .filter-group {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .filter-group label {
+      font-weight: 600;
+      color: #555;
+    }
+    .filter-group select {
+      padding: 0.5rem 1rem;
+      border: 2px solid #667eea;
+      border-radius: 8px;
+      font-size: 1rem;
+      background: white;
+      cursor: pointer;
+    }
+    .chart-section {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .chart-section h2 {
+      margin-top: 0;
+      color: #333;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 0.5rem;
+    }
+    .chart-container {
+      position: relative;
+      height: 400px;
+      margin-top: 1.5rem;
+    }
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .card h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+    .card .value {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin: 0;
+    }
+    .card .unit {
+      font-size: 0.9rem;
+      opacity: 0.8;
+      margin-top: 0.25rem;
+    }
+    .no-data {
+      text-align: center;
+      padding: 3rem;
+      color: #999;
+      font-size: 1.1rem;
+    }
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: #667eea;
+      font-size: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📊 训练统计分析</h1>
+    <nav>
+      <a href="/">首页</a>
+      <a href="/trainings">训练项目</a>
+      <a href="/reports/daily/v2">每日报告</a>
+    </nav>
+  </header>
+
+  <div class="stats-container">
+    <div class="header-section">
+      <h1 id="trainingName">{{.TrainingName}}</h1>
+      <p style="color: #666; font-size: 1.1rem;">查看你的训练进步历程</p>
+    </div>
+
+    <div class="filters">
+      <div class="filter-group">
+        <label>时间范围：</label>
+        <select id="daysFilter" onchange="loadData()">
+          <option value="today">今天</option>
+          <option value="7" selected>最近7天</option>
+          <option value="14">最近14天</option>
+          <option value="30">最近30天</option>
+          <option value="60">最近60天</option>
+          <option value="90">最近90天</option>
+          <option value="365">全部</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="summary-cards" id="summaryCards">
+      <div class="loading">加载中...</div>
+    </div>
+
+    <div class="chart-section">
+      <h2>⏱️ 完成时间趋势</h2>
+      <div class="chart-container">
+        <canvas id="timeChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <h2>🎯 准确率变化</h2>
+      <div class="chart-container">
+        <canvas id="accuracyChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-section">
+      <h2>💯 得分趋势</h2>
+      <div class="chart-container">
+        <canvas id="scoreChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const trainingId = {{.TrainingID}};
+    let timeChart, accuracyChart, scoreChart;
+
+    // 页面加载时初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      loadData();
+    });
+
+    async function loadData() {
+      const timeValue = document.getElementById('daysFilter').value;
+
+      console.log('🔵 加载训练统计数据', { trainingId, timeValue });
+
+      try {
+        let url;
+        if (timeValue === 'today') {
+          // 今天从0点开始
+          url = `/api/stats/training/${trainingId}?range=today`;
+        } else {
+          // 最近N天
+          url = `/api/stats/training/${trainingId}?days=${timeValue}`;
+        }
+
+        console.log('🔵 请求URL:', url);
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('✅ 数据加载成功', { roundCount: data.rounds ? data.rounds.length : 0 });
+
+        if (!data.rounds || data.rounds.length === 0) {
+          showNoData();
+          return;
+        }
+
+        // 更新汇总卡片
+        updateSummaryCards(data.rounds);
+
+        // 更新图表
+        updateCharts(data.rounds);
+      } catch (err) {
+        console.error('❌ 数据加载失败:', err);
+        showError();
+      }
+    }
+
+    function updateSummaryCards(rounds) {
+      const totalRounds = rounds.length;
+      const successRounds = rounds.filter(r => r.success).length;
+      const avgDuration = rounds.reduce((sum, r) => sum + r.duration, 0) / totalRounds;
+      const avgAccuracy = rounds.reduce((sum, r) => sum + r.accuracy, 0) / totalRounds;
+      const avgScore = rounds.reduce((sum, r) => sum + r.score, 0) / totalRounds;
+
+      const container = document.getElementById('summaryCards');
+      container.innerHTML = `
+        <div class="card">
+          <h3>训练轮次</h3>
+          <p class="value">${totalRounds}</p>
+          <p class="unit">轮</p>
+        </div>
+        <div class="card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+          <h3>成功轮次</h3>
+          <p class="value">${successRounds}</p>
+          <p class="unit">${Math.round(successRounds / totalRounds * 100)}% 成功率</p>
+        </div>
+        <div class="card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+          <h3>平均用时</h3>
+          <p class="value">${Math.round(avgDuration)}</p>
+          <p class="unit">秒</p>
+        </div>
+        <div class="card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+          <h3>平均准确率</h3>
+          <p class="value">${Math.round(avgAccuracy)}</p>
+          <p class="unit">%</p>
+        </div>
+        <div class="card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+          <h3>平均得分</h3>
+          <p class="value">${Math.round(avgScore)}</p>
+          <p class="unit">分</p>
+        </div>
+      `;
+    }
+
+    function updateCharts(rounds) {
+      // 准备数据
+      const labels = rounds.map((r, i) => `第${i + 1}轮`);
+      const durations = rounds.map(r => r.duration);
+      const accuracies = rounds.map(r => r.accuracy);
+      const scores = rounds.map(r => r.score);
+
+      // 销毁旧图表
+      if (timeChart) timeChart.destroy();
+      if (accuracyChart) accuracyChart.destroy();
+      if (scoreChart) scoreChart.destroy();
+
+      // 创建完成时间图表
+      const timeCtx = document.getElementById('timeChart').getContext('2d');
+      timeChart = new Chart(timeCtx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '完成时间（秒）',
+            data: durations,
+            borderColor: '#667eea',
+            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 5,
+            pointHoverRadius: 7
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'top' },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: '时间（秒）' }
+            }
+          }
+        }
+      });
+
+      // 创建准确率图表
+      const accuracyCtx = document.getElementById('accuracyChart').getContext('2d');
+      accuracyChart = new Chart(accuracyCtx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '准确率（%）',
+            data: accuracies,
+            borderColor: '#43e97b',
+            backgroundColor: 'rgba(67, 233, 123, 0.1)',
+            borderWidth: 3,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 5,
+            pointHoverRadius: 7
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'top' },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: { display: true, text: '准确率（%）' }
+            }
+          }
+        }
+      });
+
+      // 创建得分图表
+      const scoreCtx = document.getElementById('scoreChart').getContext('2d');
+      scoreChart = new Chart(scoreCtx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '得分',
+            data: scores,
+            backgroundColor: rounds.map(r => r.success ? 'rgba(67, 233, 123, 0.6)' : 'rgba(245, 87, 108, 0.6)'),
+            borderColor: rounds.map(r => r.success ? '#43e97b' : '#f5576c'),
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'top' },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              title: { display: true, text: '得分' }
+            }
+          }
+        }
+      });
+    }
+
+    function showNoData() {
+      document.getElementById('summaryCards').innerHTML = '<div class="no-data">暂无训练数据，快去完成训练吧！</div>';
+      if (timeChart) timeChart.destroy();
+      if (accuracyChart) accuracyChart.destroy();
+      if (scoreChart) scoreChart.destroy();
+      document.querySelectorAll('.chart-container').forEach(el => {
+        el.innerHTML = '<div class="no-data">暂无数据</div>';
+      });
+    }
+
+    function showError() {
+      document.getElementById('summaryCards').innerHTML = '<div class="no-data" style="color: #e74c3c;">加载失败，请刷新重试</div>';
+    }
+  </script>
+</body>
+</html>

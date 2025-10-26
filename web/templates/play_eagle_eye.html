@@ -5,31 +5,71 @@
   <title>火眼金睛 - {{.TrainingName}}</title>
   <link rel="stylesheet" href="/static/app.css" />
   <style>
+    /* Header优化 - 紧凑布局 */
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 10px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    header h1 {
+      font-size: 1.5rem;
+      margin: 0;
+      color: white;
+      display: inline-block;
+    }
+    header nav {
+      display: inline-block;
+      float: right;
+      margin-top: 5px;
+    }
+    header nav a {
+      color: white;
+      text-decoration: none;
+      background: rgba(255,255,255,0.2);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      transition: all 0.3s;
+    }
+    header nav a:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+
     .panel { text-align:center; padding: 1rem; }
     .big { font-size: 1.6rem; font-weight: 800; color: #ff6b35; margin-bottom: 0.5rem; }
     .instruction { color: #666; margin-bottom: 1rem; font-size: 0.95rem; }
-    .stats { margin: 1rem 0; color:#555; font-size: 0.9rem; }
+
+    /* 信息栏样式 - 统一样式 */
+    .info-bar { background: #f8f9fa; padding: 10px; border-radius: 12px; margin: 10px auto; max-width: 600px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
+    .info-item { display: inline-block; }
+    .info-label { font-size: 0.85rem; color: #666; display: block; }
+    .info-value { font-size: 1.3rem; font-weight: 700; color: #4a90e2; }
+    .timer { font-size: 2rem; font-weight: 900; color: #e24a68; }
+
     .controls { display:flex; gap:8px; justify-content:center; align-items:center; margin: 1rem 0; flex-wrap: wrap; }
 
-    /* 任务提示区域 */
+    /* 任务提示区域 - 精简版 */
     .task-prompt {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
-      padding: 1.5rem;
-      border-radius: 16px;
-      margin: 1.5rem auto;
-      max-width: 500px;
+      padding: 0.8rem 1.2rem;
+      border-radius: 12px;
+      margin: 1rem auto;
+      max-width: 600px;
       box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
     }
     .task-prompt .target {
-      font-size: 3rem;
-      margin: 0.5rem 0;
+      font-size: 2rem;
       text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
     }
-    .task-prompt .count {
-      font-size: 1.3rem;
+    .task-prompt .info {
+      font-size: 1.1rem;
       font-weight: 600;
-      margin-top: 0.5rem;
     }
 
     /* 物品容器 - 随机散布 */
@@ -85,31 +125,70 @@
       color: #dc3545;
     }
 
-    /* 难度按钮 */
-    .level-btn {
+    /* 难度选择器 */
+    .levelSelector {
       padding: 0.5rem 1rem;
       border-radius: 8px;
       border: 2px solid #667eea;
       background: white;
       color: #667eea;
       font-weight: 600;
+      font-size: 1rem;
       cursor: pointer;
       transition: all 0.2s ease;
     }
-    .level-btn:hover {
-      background: #667eea;
-      color: white;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+    .levelSelector:hover {
+      border-color: #764ba2;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
     }
-    .level-btn.active {
-      background: #667eea;
+
+    /* 开始按钮 */
+    .start-btn {
+      padding: 0.8rem 2rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-radius: 10px;
+      border: none;
+      background: #28a745;
       color: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin: 1rem 0;
+    }
+    .start-btn:hover:not(:disabled) {
+      background: #218838;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    }
+    .start-btn:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    /* 欢迎提示 */
+    .welcome-message {
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      padding: 3rem 2rem;
+      border-radius: 20px;
+      margin: 1.5rem auto;
+      max-width: 600px;
+      text-align: center;
+    }
+    .welcome-message h2 {
+      color: #667eea;
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
+    .welcome-message p {
+      color: #555;
+      font-size: 1.1rem;
+      line-height: 1.6;
     }
   </style>
   <script>
     let sessionId = {{.ID}};
-    let level = 'medium'; // 默认中等难度
+    let level = 'level4'; // 默认中等难度（4级）
     let startTs = 0;
     let successCount = 0;
     let errorCount = 0;
@@ -118,75 +197,206 @@
     let targetEmoji = ''; // 当前目标物品
     let targetName = ''; // 目标物品名称
     let items = []; // 所有物品数据
+    let currentRoundId = 0; // 当前轮次的数据库ID
+    let roundStartTime = 0; // 轮次开始时间戳
+    let roundNumber = 0; // 轮次编号
+    let gameStarted = false; // 游戏是否已开始
 
-    // 物品库：emoji 和名称
-    const itemsLibrary = [
-      { emoji: '🧦', name: '袜子' },
-      { emoji: '👟', name: '鞋子' },
-      { emoji: '🎩', name: '帽子' },
-      { emoji: '👕', name: '衣服' },
-      { emoji: '👔', name: '领带' },
-      { emoji: '🍎', name: '苹果' },
-      { emoji: '🍌', name: '香蕉' },
-      { emoji: '🍇', name: '葡萄' },
-      { emoji: '🍓', name: '草莓' },
-      { emoji: '🍊', name: '橙子' },
-      { emoji: '⚽', name: '足球' },
-      { emoji: '🏀', name: '篮球' },
-      { emoji: '🎾', name: '网球' },
-      { emoji: '🏐', name: '排球' },
-      { emoji: '⚾', name: '棒球' },
-      { emoji: '🚗', name: '汽车' },
-      { emoji: '🚕', name: '出租车' },
-      { emoji: '🚙', name: '越野车' },
-      { emoji: '🚌', name: '公交车' },
-      { emoji: '🚑', name: '救护车' },
-      { emoji: '🐶', name: '小狗' },
-      { emoji: '🐱', name: '小猫' },
-      { emoji: '🐭', name: '老鼠' },
-      { emoji: '🐹', name: '仓鼠' },
-      { emoji: '🐰', name: '兔子' },
-      { emoji: '🌸', name: '樱花' },
-      { emoji: '🌺', name: '红花' },
-      { emoji: '🌻', name: '向日葵' },
-      { emoji: '🌹', name: '玫瑰' },
-      { emoji: '🌷', name: '郁金香' },
-      { emoji: '⭐', name: '星星' },
-      { emoji: '🌙', name: '月亮' },
-      { emoji: '☀️', name: '太阳' },
-      { emoji: '☁️', name: '云朵' },
-      { emoji: '🌈', name: '彩虹' }
-    ];
-
-    // 难度配置
-    const levelConfigs = {
-      easy: { totalItems: 30, targetCount: 3, distractorTypes: 5 },
-      medium: { totalItems: 50, targetCount: 4, distractorTypes: 8 },
-      hard: { totalItems: 80, targetCount: 5, distractorTypes: 12 }
+    // 物品库：按类别分组，增加相似物品数量以提高难度
+    const itemsLibrary = {
+      clothing: [
+        { emoji: '👕', name: '短袖' },
+        { emoji: '👔', name: '领带' },
+        { emoji: '🧥', name: '外套' },
+        { emoji: '👗', name: '裙子' },
+        { emoji: '👘', name: '和服' },
+        { emoji: '👚', name: '女装' },
+        { emoji: '🧦', name: '袜子' },
+        { emoji: '👟', name: '运动鞋' },
+        { emoji: '👞', name: '皮鞋' },
+        { emoji: '🥾', name: '靴子' },
+        { emoji: '👠', name: '高跟鞋' },
+        { emoji: '🩴', name: '拖鞋' },
+        { emoji: '🎩', name: '礼帽' },
+        { emoji: '🧢', name: '鸭舌帽' },
+        { emoji: '👒', name: '太阳帽' },
+        { emoji: '🎓', name: '学士帽' }
+      ],
+      fruits: [
+        { emoji: '🍎', name: '红苹果' },
+        { emoji: '🍏', name: '青苹果' },
+        { emoji: '🍊', name: '橙子' },
+        { emoji: '🍋', name: '柠檬' },
+        { emoji: '🍌', name: '香蕉' },
+        { emoji: '🍉', name: '西瓜' },
+        { emoji: '🍇', name: '葡萄' },
+        { emoji: '🍓', name: '草莓' },
+        { emoji: '🫐', name: '蓝莓' },
+        { emoji: '🍒', name: '樱桃' },
+        { emoji: '🍑', name: '桃子' },
+        { emoji: '🥝', name: '猕猴桃' },
+        { emoji: '🍐', name: '梨' },
+        { emoji: '🥭', name: '芒果' }
+      ],
+      balls: [
+        { emoji: '⚽', name: '足球' },
+        { emoji: '🏀', name: '篮球' },
+        { emoji: '🏈', name: '橄榄球' },
+        { emoji: '⚾', name: '棒球' },
+        { emoji: '🥎', name: '垒球' },
+        { emoji: '🎾', name: '网球' },
+        { emoji: '🏐', name: '排球' },
+        { emoji: '🏉', name: '英式橄榄球' },
+        { emoji: '🥏', name: '飞盘' },
+        { emoji: '🎱', name: '台球' },
+        { emoji: '🪀', name: '悠悠球' },
+        { emoji: '🏓', name: '乒乓球' }
+      ],
+      vehicles: [
+        { emoji: '🚗', name: '小汽车' },
+        { emoji: '🚕', name: '出租车' },
+        { emoji: '🚙', name: '越野车' },
+        { emoji: '🚌', name: '公交车' },
+        { emoji: '🚎', name: '无轨电车' },
+        { emoji: '🏎️', name: '赛车' },
+        { emoji: '🚓', name: '警车' },
+        { emoji: '🚑', name: '救护车' },
+        { emoji: '🚒', name: '消防车' },
+        { emoji: '🚐', name: '面包车' },
+        { emoji: '🛻', name: '皮卡' },
+        { emoji: '🚚', name: '卡车' }
+      ],
+      animals: [
+        { emoji: '🐶', name: '小狗' },
+        { emoji: '🐕', name: '狗' },
+        { emoji: '🐩', name: '贵宾犬' },
+        { emoji: '🐕‍🦺', name: '导盲犬' },
+        { emoji: '🐱', name: '小猫' },
+        { emoji: '🐈', name: '猫' },
+        { emoji: '🐈‍⬛', name: '黑猫' },
+        { emoji: '🐭', name: '老鼠脸' },
+        { emoji: '🐁', name: '老鼠' },
+        { emoji: '🐹', name: '仓鼠' },
+        { emoji: '🐰', name: '兔子脸' },
+        { emoji: '🐇', name: '兔子' },
+        { emoji: '🦊', name: '狐狸' },
+        { emoji: '🐻', name: '熊' },
+        { emoji: '🐼', name: '熊猫' },
+        { emoji: '🐨', name: '考拉' }
+      ],
+      flowers: [
+        { emoji: '🌸', name: '樱花' },
+        { emoji: '🌺', name: '红花' },
+        { emoji: '🌻', name: '向日葵' },
+        { emoji: '🌹', name: '玫瑰' },
+        { emoji: '🌷', name: '郁金香' },
+        { emoji: '🌼', name: '小花' },
+        { emoji: '🌱', name: '幼苗' },
+        { emoji: '🌿', name: '草叶' },
+        { emoji: '🍀', name: '四叶草' },
+        { emoji: '🪴', name: '盆栽' },
+        { emoji: '🌵', name: '仙人掌' },
+        { emoji: '🪷', name: '莲花' }
+      ],
+      weather: [
+        { emoji: '⭐', name: '星星' },
+        { emoji: '🌟', name: '闪亮星' },
+        { emoji: '✨', name: '闪烁' },
+        { emoji: '💫', name: '眩晕' },
+        { emoji: '☀️', name: '太阳' },
+        { emoji: '🌞', name: '笑脸太阳' },
+        { emoji: '🌝', name: '满月脸' },
+        { emoji: '🌛', name: '上弦月脸' },
+        { emoji: '🌜', name: '下弦月脸' },
+        { emoji: '🌙', name: '月牙' },
+        { emoji: '☁️', name: '云朵' },
+        { emoji: '⛅', name: '多云' },
+        { emoji: '⛈️', name: '雷雨' },
+        { emoji: '🌈', name: '彩虹' }
+      ]
     };
 
-    // 初始化游戏
-    function build() {
+    // 获取所有物品的平铺数组（用于兼容性）
+    function getAllItems() {
+      const allItems = [];
+      for (const category in itemsLibrary) {
+        allItems.push(...itemsLibrary[category]);
+      }
+      return allItems;
+    }
+
+    // 根据物品查找其所属类别
+    function getCategoryForItem(item) {
+      for (const category in itemsLibrary) {
+        if (itemsLibrary[category].some(i => i.emoji === item.emoji)) {
+          return category;
+        }
+      }
+      return null;
+    }
+
+    // 难度配置（增加更多难度等级）
+    const levelConfigs = {
+      level1: { name: '1级 - 入门', totalItems: 20, targetCount: 3, sameCategoryRatio: 0.5, distractorTypes: 6 },
+      level2: { name: '2级 - 简单', totalItems: 30, targetCount: 3, sameCategoryRatio: 0.6, distractorTypes: 8 },
+      level3: { name: '3级 - 普通', totalItems: 40, targetCount: 4, sameCategoryRatio: 0.65, distractorTypes: 10 },
+      level4: { name: '4级 - 中等', totalItems: 50, targetCount: 4, sameCategoryRatio: 0.7, distractorTypes: 12 },
+      level5: { name: '5级 - 困难', totalItems: 60, targetCount: 5, sameCategoryRatio: 0.75, distractorTypes: 14 },
+      level6: { name: '6级 - 很难', totalItems: 70, targetCount: 5, sameCategoryRatio: 0.8, distractorTypes: 16 },
+      level7: { name: '7级 - 专家', totalItems: 80, targetCount: 6, sameCategoryRatio: 0.85, distractorTypes: 18 },
+      level8: { name: '8级 - 大师', totalItems: 100, targetCount: 7, sameCategoryRatio: 0.9, distractorTypes: 20 }
+    };
+
+    // 初始化游戏（准备阶段，不计入轮次）
+    function prepareGame() {
       const config = levelConfigs[level];
       const container = document.getElementById('grid');
       container.innerHTML = '';
 
       items = [];
-      successCount = 0;
-      errorCount = 0;
       foundCount = 0;
       targetCount = config.targetCount;
 
-      // 随机选择目标物品
-      const targetItem = itemsLibrary[Math.floor(Math.random() * itemsLibrary.length)];
+      // 随机选择目标物品（从所有物品中选择）
+      const allItems = getAllItems();
+      const targetItem = allItems[Math.floor(Math.random() * allItems.length)];
       targetEmoji = targetItem.emoji;
       targetName = targetItem.name;
 
-      // 随机选择干扰物品（不包含目标物品）
-      const distractorItems = itemsLibrary
-        .filter(item => item.emoji !== targetEmoji)
+      // 找到目标物品的类别
+      const targetCategory = getCategoryForItem(targetItem);
+
+      // 获取同类别的其他物品（不包含目标物品本身）
+      const sameCategoryItems = itemsLibrary[targetCategory].filter(
+        item => item.emoji !== targetEmoji
+      );
+
+      // 获取其他类别的所有物品
+      const otherCategoryItems = [];
+      for (const category in itemsLibrary) {
+        if (category !== targetCategory) {
+          otherCategoryItems.push(...itemsLibrary[category]);
+        }
+      }
+
+      // 根据难度配置，计算同类别干扰物品和其他类别干扰物品的数量
+      const sameCategoryCount = Math.floor(config.distractorTypes * config.sameCategoryRatio);
+      const otherCategoryCount = config.distractorTypes - sameCategoryCount;
+
+      // 选择干扰物品：优先同类别
+      const distractorItems = [];
+
+      // 添加同类别干扰物品
+      const selectedSameCategory = sameCategoryItems
         .sort(() => Math.random() - 0.5)
-        .slice(0, config.distractorTypes);
+        .slice(0, Math.min(sameCategoryCount, sameCategoryItems.length));
+      distractorItems.push(...selectedSameCategory);
+
+      // 添加其他类别干扰物品
+      const selectedOtherCategory = otherCategoryItems
+        .sort(() => Math.random() - 0.5)
+        .slice(0, otherCategoryCount);
+      distractorItems.push(...selectedOtherCategory);
 
       // 生成物品数组：目标物品 + 干扰物品
       const itemsToPlace = [];
@@ -264,13 +474,54 @@
       document.getElementById('targetCount').textContent = targetCount;
 
       updatePanel();
-      startTimer();
       document.getElementById('msg').textContent = '';
       document.getElementById('msg').classList.remove('error');
+
+      // 隐藏欢迎消息，显示游戏区域和任务提示
+      document.getElementById('welcomeMessage').style.display = 'none';
+      document.getElementById('taskPrompt').style.display = 'flex';
+      document.getElementById('grid').style.display = 'block';
+      document.getElementById('stats').style.display = 'block';
+    }
+
+    // 开始游戏（点击开始按钮后调用，此时才计入轮次）
+    async function startGame() {
+      if (gameStarted) return;
+
+      gameStarted = true;
+      document.getElementById('startBtn').style.display = 'none'; // 隐藏按钮而不是禁用
+
+      // 准备游戏界面
+      prepareGame();
+
+      // 开始新轮次记录
+      roundNumber++;
+      roundStartTime = Date.now();
+      console.log('🔵 [火眼金睛] 开始新轮次', { sessionId, roundNumber, level });
+      try {
+        const form = new URLSearchParams();
+        form.set('session_id', sessionId);
+        form.set('round_number', roundNumber);
+        const response = await fetch('/api/session/round/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        currentRoundId = data.round_id;
+        console.log('✅ [火眼金睛] 轮次开始成功', { roundId: currentRoundId });
+      } catch (err) {
+        console.error('❌ [火眼金睛] 开始轮次失败:', err);
+      }
+
+      // 开始计时
+      startTimer();
     }
 
     // 点击物品
     function clickItem(index) {
+      if (!gameStarted) return; // 游戏未开始，不响应点击
+
       const item = items[index];
       if (item.found) return; // 已找到的不能再点
 
@@ -281,7 +532,6 @@
         foundCount++;
         successCount++;
 
-        postProgress();
         updatePanel();
 
         // 检查是否全部找到
@@ -295,7 +545,6 @@
         item.element.classList.add('wrong');
         errorCount++;
 
-        postProgress();
         updatePanel();
         showMessage('不对哦，再仔细看看！', true);
 
@@ -337,59 +586,112 @@
       document.getElementById('elapsed').textContent = secs + ' 秒';
     }
 
-    // 提交进度
-    function postProgress() {
-      const form = new URLSearchParams();
-      form.set('id', sessionId);
-      form.set('success', successCount);
-      form.set('errors', errorCount);
-      fetch('/api/session/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form
-      });
-    }
-
     // 游戏完成
-    function finish() {
+    async function finish() {
       clearInterval(window._t);
       const secs = Math.floor((Date.now() - startTs) / 1000);
       const accuracy = Math.round((successCount / (successCount + errorCount)) * 100);
       showMessage(`恭喜！全部找到了！用时 ${secs} 秒，正确率 ${accuracy}%`, false);
 
-      const levelName = { easy: '简单', medium: '中等', hard: '困难' }[level];
-      const note = `火眼金睛-${levelName} 找到${targetCount}个${targetName} 用时${secs}秒 正确率${accuracy}%`;
-      const form = new URLSearchParams();
-      form.set('id', sessionId);
-      form.set('success', successCount);
-      form.set('errors', errorCount);
-      form.set('notes', note);
-      form.set('append', '1');
-      fetch('/api/session/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form
-      });
+      // 记录轮次完成
+      await finishRound(secs, accuracy);
     }
 
-    // 设置难度
-    function setLevel(newLevel) {
-      level = newLevel;
+    // 记录轮次完成
+    async function finishRound(secs, accuracy) {
+      console.log('🔵 [火眼金睛] 准备记录轮次完成', { roundId: currentRoundId, secs, accuracy, errors: errorCount });
+      if (!currentRoundId) {
+        console.warn('⚠️ [火眼金睛] 没有currentRoundId，跳过轮次记录');
+        return;
+      }
 
-      // 更新按钮状态
-      document.querySelectorAll('.level-btn').forEach(btn => {
-        btn.classList.remove('active');
+      const config = levelConfigs[level];
+      const score = Math.max(0, 100 - errorCount * 5); // 每个错误扣5分
+
+      // 构建metadata JSON
+      const metadata = JSON.stringify({
+        level: level,
+        total_items: config.totalItems,
+        target_count: targetCount,
+        target_name: targetName,
+        target_emoji: targetEmoji,
+        time_seconds: secs,
+        success_count: successCount,
+        error_count: errorCount
       });
-      event.target.classList.add('active');
 
-      build();
+      console.log('🔵 [火眼金睛] 发送轮次完成请求', { score, accuracy, duration: secs });
+      try {
+        const form = new URLSearchParams();
+        form.set('round_id', currentRoundId);
+        form.set('duration_seconds', secs); // 使用前端计算的准确时长
+        form.set('success', errorCount === 0 ? '1' : '0');
+        form.set('score', score);
+        form.set('accuracy', accuracy);
+        form.set('metadata', metadata);
+
+        const response = await fetch('/api/session/round/finish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        console.log('✅ [火眼金睛] 轮次记录完成', data);
+      } catch (err) {
+        console.error('❌ [火眼金睛] 记录轮次失败:', err);
+      }
+    }
+
+    // 改变难度
+    function changeLevel() {
+      const selector = document.getElementById('levelSelector');
+      level = selector.value;
+
+      // 如果游戏已开始，重置游戏状态
+      if (gameStarted) {
+        gameStarted = false;
+        document.getElementById('startBtn').style.display = 'inline-block';
+        document.getElementById('startBtn').textContent = '开始游戏';
+        clearInterval(window._t);
+
+        // 显示欢迎消息
+        document.getElementById('welcomeMessage').style.display = 'block';
+        document.getElementById('taskPrompt').style.display = 'none';
+        document.getElementById('grid').style.display = 'none';
+        document.getElementById('stats').style.display = 'none';
+      }
+    }
+
+    // 重新开始游戏
+    async function restartGame() {
+      // 如果有正在进行的轮次，先结束它
+      if (currentRoundId && gameStarted) {
+        await finishRound(Math.floor((Date.now() - startTs) / 1000), 0);
+      }
+
+      clearInterval(window._t);
+      gameStarted = false;
+      successCount = 0;
+      errorCount = 0;
+
+      document.getElementById('startBtn').style.display = 'inline-block';
+      document.getElementById('startBtn').textContent = '开始游戏';
+
+      // 显示欢迎消息
+      document.getElementById('welcomeMessage').style.display = 'block';
+      document.getElementById('taskPrompt').style.display = 'none';
+      document.getElementById('grid').style.display = 'none';
+      document.getElementById('stats').style.display = 'none';
+      document.getElementById('msg').textContent = '';
     }
 
     // 页面加载完成后初始化
     document.addEventListener('DOMContentLoaded', () => {
-      // 默认激活中等难度按钮
-      document.querySelector('.level-btn[onclick*="medium"]').classList.add('active');
-      build();
+      // 默认显示欢迎消息
+      document.getElementById('welcomeMessage').style.display = 'block';
+      document.getElementById('taskPrompt').style.display = 'none';
+      document.getElementById('grid').style.display = 'none';
+      document.getElementById('stats').style.display = 'none';
     });
   </script>
 </head>
@@ -404,37 +706,61 @@
     <p class="big">快速找出所有目标物品！</p>
     <p class="instruction">在众多物品中找出指定的目标，训练你的观察力和专注力</p>
 
-    <!-- 任务提示 -->
-    <div class="task-prompt">
-      <div style="font-size: 1.2rem;">请找出：</div>
-      <div class="target">
-        <span id="targetEmoji">🧦</span>
-        <span id="targetName" style="font-size: 1.8rem; margin-left: 0.5rem;">袜子</span>
-      </div>
-      <div class="count">
-        需要找到 <span id="targetCount">3</span> 个
-      </div>
+    <!-- 欢迎消息 -->
+    <div id="welcomeMessage" class="welcome-message">
+      <h2>👀 准备好挑战你的火眼金睛了吗？</h2>
+      <p>选择难度等级，然后点击"开始游戏"按钮开始训练！</p>
+      <p style="color: #999; font-size: 0.95rem; margin-top: 1rem;">越高的难度，干扰物品与目标物品越相似</p>
     </div>
 
-    <p class="stats">
-      计时：<strong id="elapsed">0 秒</strong> ｜
-      已找到：<strong id="found">0</strong>/<strong id="total">3</strong> ｜
-      错误：<strong id="err">0</strong>
-    </p>
-
+    <!-- 难度选择 -->
     <div class="controls">
-      <span style="font-weight: 600;">选择难度：</span>
-      <button class="level-btn" onclick="setLevel('easy')">简单 (30个)</button>
-      <button class="level-btn" onclick="setLevel('medium')">中等 (50个)</button>
-      <button class="level-btn" onclick="setLevel('hard')">困难 (80个)</button>
+      <label for="levelSelector" style="font-weight: 600; color: #333; font-size: 1rem;">🎯 难度等级：</label>
+      <select id="levelSelector" class="levelSelector" onchange="changeLevel()">
+        <option value="level1">1级 - 入门 (20个物品，找3个)</option>
+        <option value="level2">2级 - 简单 (30个物品，找3个)</option>
+        <option value="level3">3级 - 普通 (40个物品，找4个)</option>
+        <option value="level4" selected>4级 - 中等 (50个物品，找4个)</option>
+        <option value="level5">5级 - 困难 (60个物品，找5个)</option>
+        <option value="level6">6级 - 很难 (70个物品，找5个)</option>
+        <option value="level7">7级 - 专家 (80个物品，找6个)</option>
+        <option value="level8">8级 - 大师 (100个物品，找7个)</option>
+      </select>
     </div>
 
-    <div id="grid" class="items-container"></div>
+    <!-- 开始按钮 -->
+    <button id="startBtn" class="start-btn" onclick="startGame()">开始游戏</button>
+
+    <!-- 任务提示 - 精简版 -->
+    <div id="taskPrompt" class="task-prompt" style="display: none;">
+      <span style="font-size: 1rem; opacity: 0.9;">请找出：</span>
+      <span id="targetEmoji" class="target">🧦</span>
+      <span id="targetName" class="info">袜子</span>
+      <span class="info">×<span id="targetCount">3</span></span>
+    </div>
+
+    <!-- 信息栏 -->
+    <div id="stats" class="info-bar" style="display: none;">
+      <div class="info-item">
+        <span class="info-label">⏱️ 计时</span>
+        <span class="info-value timer" id="elapsed">0 秒</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">🎯 已找到</span>
+        <span class="info-value"><span id="found">0</span>/<span id="total">3</span></span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">❌ 错误</span>
+        <span class="info-value" id="err">0</span>
+      </div>
+    </div>
+
+    <div id="grid" class="items-container" style="display: none;"></div>
 
     <p id="msg"></p>
 
     <div style="margin-top:1.5rem;">
-      <button onclick="build()" style="background:#667eea; margin-right: 0.5rem;">重新开始</button>
+      <button onclick="restartGame()" style="background:#667eea; margin-right: 0.5rem;">重新开始</button>
       <form action="/session/finish" method="post" style="display:inline">
         <input type="hidden" name="id" value="{{.ID}}" />
         <button type="submit" style="background:#4ab3e2">结束训练</button>

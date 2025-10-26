@@ -1,0 +1,1668 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>小鱼历险记 - {{.TrainingName}}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    /* Header优化 - 紧凑布局 */
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 8px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      height: 42px;
+    }
+    header h1 {
+      font-size: 1.5rem;
+      margin: 0;
+      color: white;
+      display: inline-block;
+    }
+    header nav {
+      display: inline-block;
+      float: right;
+      margin-top: 5px;
+    }
+    header nav a {
+      color: white;
+      text-decoration: none;
+      background: rgba(255,255,255,0.2);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      transition: all 0.3s;
+    }
+    header nav a:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.05);
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      height: 100vh;
+    }
+
+    .panel {
+      text-align: center;
+      padding: 1rem;
+    }
+
+    .big {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #4a90e2;
+      margin-bottom: 0.5rem;
+    }
+
+    /* 信息栏样式 - 固定在顶部，包含规则 */
+    .info-bar {
+      background: #f8f9fa;
+      padding: 10px 10px 10px 20px;
+      border-radius: 0;
+      margin: 0;
+      max-width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+      position: fixed;
+      top: 50px;
+      left: 0;
+      right: 0;
+      z-index: 98;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      min-height: 60px;
+    }
+
+    /* 规则显示在信息栏左侧 */
+    .rule-display {
+      flex: 1;
+      text-align: left;
+      font-size: 1.3rem;
+      font-weight: 900;
+      color: #dc143c;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+      min-width: 300px;
+    }
+
+    /* 数据项显示在右侧，留出暂停按钮的空间 */
+    .info-items {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      padding-right: 120px;
+    }
+
+    .info-item {
+      display: inline-block;
+    }
+    .info-label {
+      font-size: 0.75rem;
+      color: #666;
+      display: block;
+    }
+    .info-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #4a90e2;
+    }
+    .timer {
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: #e24a68;
+    }
+
+    /* 游戏设置区域 */
+    .game-settings {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin: 1rem auto;
+      max-width: 600px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .setting-row {
+      margin: 1rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+    }
+
+    .setting-label {
+      font-weight: 600;
+      color: #333;
+      font-size: 1rem;
+    }
+
+    .levelSelector, .timeSelector {
+      padding: 0.6rem 1.5rem;
+      border-radius: 8px;
+      border: 2px solid #667eea;
+      background: white;
+      color: #667eea;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .levelSelector:hover, .timeSelector:hover {
+      border-color: #764ba2;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    /* 开始按钮 */
+    .start-btn {
+      padding: 1rem 3rem;
+      font-size: 1.2rem;
+      font-weight: 600;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(135deg, #49c36b 0%, #3da85a 100%);
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin: 1.5rem 0;
+      box-shadow: 0 4px 12px rgba(73, 195, 107, 0.3);
+    }
+    .start-btn:hover {
+      background: linear-gradient(135deg, #3da85a 0%, #2e8b57 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(73, 195, 107, 0.4);
+    }
+
+    /* 欢迎消息 */
+    .welcome-message {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 3rem 2rem;
+      border-radius: 20px;
+      margin: 1.5rem auto;
+      max-width: 600px;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+    }
+    .welcome-message h2 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    .welcome-message p {
+      font-size: 1.1rem;
+      margin: 0.5rem 0;
+      opacity: 0.95;
+    }
+    .welcome-message .icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+
+    /* 规则提示条 - 隐藏独立的规则栏 */
+    .rule-banner {
+      display: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+
+    /* 游戏区域 - 全屏显示 */
+    .game-area {
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: 120px; /* header(50) + info-bar(70) */
+      bottom: 0;
+      width: 100%;
+      height: calc(100vh - 120px);
+      background: linear-gradient(180deg, #a8e6cf 0%, #56c4e8 50%, #2e5c8a 100%);
+      overflow: hidden;
+      border-radius: 0;
+      cursor: crosshair;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+
+    /* 点击目标指示器 */
+    .click-target {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      border: 3px solid #ffd700;
+      border-radius: 50%;
+      animation: targetPulse 0.5s ease;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    @keyframes targetPulse {
+      0% { transform: scale(0.5); opacity: 1; }
+      100% { transform: scale(2); opacity: 0; }
+    }
+
+    /* 海洋装饰 */
+    .decoration {
+      position: absolute;
+      opacity: 0.3;
+      pointer-events: none;
+    }
+
+    .bubble {
+      position: absolute;
+      bottom: -50px;
+      width: 20px;
+      height: 20px;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 50%;
+      animation: floatUp 5s infinite;
+    }
+
+    @keyframes floatUp {
+      to {
+        bottom: 650px;
+        opacity: 0;
+      }
+    }
+
+    /* 玩家鱼 */
+    .player-fish {
+      position: absolute;
+      font-size: 3rem;
+      transition: transform 0.3s ease, font-size 0.3s ease;
+      z-index: 5;
+      filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+      pointer-events: none;
+    }
+
+    /* 长大效果 - 使用outline避免和transform冲突 */
+    .player-fish.grow {
+      animation: growEffect 0.5s ease;
+    }
+
+    @keyframes growEffect {
+      0%, 100% {
+        filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+      }
+      50% {
+        filter: drop-shadow(0 0 20px #4ade80) brightness(1.3);
+      }
+    }
+
+    /* 缩小效果 - 使用filter避免和transform冲突 */
+    .player-fish.shrink {
+      animation: shrinkEffect 0.5s ease;
+    }
+
+    @keyframes shrinkEffect {
+      0%, 100% {
+        filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+      }
+      50% {
+        filter: drop-shadow(0 0 20px #ef4444) brightness(0.7);
+      }
+    }
+
+    /* 张嘴动画 - 使用filter避免和transform冲突 */
+    .player-fish.eating {
+      animation: eatAnimation 0.3s ease infinite;
+    }
+
+    @keyframes eatAnimation {
+      0%, 100% { filter: brightness(1) drop-shadow(2px 2px 4px rgba(0,0,0,0.3)); }
+      50% { filter: brightness(1.2) drop-shadow(2px 2px 6px rgba(255,215,0,0.5)); }
+    }
+
+    /* 其他鱼 */
+    .fish {
+      position: absolute;
+      font-size: 2rem;
+      user-select: none;
+      transition: transform 0.1s ease;
+      filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.2));
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .fish-number {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #333;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    .fish.correct-flash {
+      animation: correctFlash 0.3s ease;
+    }
+
+    .fish.wrong-flash {
+      animation: wrongFlash 0.3s ease;
+    }
+
+    @keyframes correctFlash {
+      0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+      50% { filter: drop-shadow(0 0 20px #4ade80); transform: scale(1.3); }
+    }
+
+    @keyframes wrongFlash {
+      0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+      50% { filter: drop-shadow(0 0 20px #ef4444); transform: scale(1.3); }
+    }
+
+    /* 金币 */
+    .coin {
+      position: absolute;
+      font-size: 1.5rem;
+      animation: coinFloat 2s infinite;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    @keyframes coinFloat {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+
+    /* 技能栏 - 暂时隐藏 */
+    .skill-bar {
+      display: none;
+      position: fixed;
+      right: 20px;
+      top: 120px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 20;
+      min-width: 150px;
+    }
+
+    .skill-item {
+      margin: 0.8rem 0;
+      text-align: center;
+      padding: 0.5rem;
+      border-radius: 8px;
+      background: #f5f5f5;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .skill-item.ready {
+      background: #d4edda;
+      border: 2px solid #28a745;
+    }
+
+    .skill-item.ready:hover {
+      transform: scale(1.05);
+      box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+    }
+
+    .skill-item.cooldown {
+      background: #f8d7da;
+      border: 2px solid #dc3545;
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .skill-icon {
+      font-size: 2rem;
+    }
+
+    .skill-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-top: 0.3rem;
+    }
+
+    .skill-progress {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 0.2rem;
+    }
+
+    /* 暂停按钮 */
+    .pause-btn {
+      position: fixed;
+      top: 65px;
+      right: 20px;
+      z-index: 100;
+      padding: 0.6rem 1.2rem;
+      background: #667eea;
+      border: 2px solid #667eea;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.9rem;
+      color: white;
+    }
+
+    .pause-btn:hover {
+      background: #5568d3;
+      border-color: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    /* 游戏结束提示 */
+    .game-over {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 3rem;
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      z-index: 100;
+      text-align: center;
+      min-width: 400px;
+    }
+
+    .game-over h2 {
+      color: #667eea;
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+
+    .game-over .stats {
+      margin: 1.5rem 0;
+      font-size: 1.1rem;
+      line-height: 1.8;
+    }
+
+    .game-over button {
+      margin: 0.5rem;
+      padding: 0.8rem 2rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .game-over .restart-btn {
+      background: #667eea;
+      color: white;
+    }
+
+    .game-over .restart-btn:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+    }
+
+    .game-over .finish-btn {
+      background: #e24a68;
+      color: white;
+    }
+
+    .game-over .finish-btn:hover {
+      background: #c93d57;
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🐟 小鱼历险记</h1>
+    <nav>
+      <a href="/">首页</a>
+    </nav>
+  </header>
+
+  <section class="panel">
+    <!-- 欢迎页面 -->
+    <div id="welcomeSection">
+      <div class="welcome-message">
+        <div class="icon">🐠</div>
+        <h2>小鱼历险记</h2>
+        <p>根据规则吞噬正确的鱼，训练专注力！</p>
+        <p style="font-size: 0.95rem; opacity: 0.8; margin-top: 1rem;">
+          使用鼠标移动小鱼，点击符合规则的鱼进行吞噬
+        </p>
+      </div>
+
+      <div class="game-settings">
+        <div class="setting-row">
+          <label class="setting-label">🎯 难度等级：</label>
+          <select id="levelSelector" class="levelSelector">
+            <option value="1">1级 - 入门 (单一颜色规则)</option>
+            <option value="2">2级 - 简单 (单一规则)</option>
+            <option value="3">3级 - 普通 (组合规则)</option>
+            <option value="4" selected>4级 - 中等 (规则切换)</option>
+            <option value="5">5级 - 困难 (三重规则)</option>
+            <option value="6">6级 - 很难 (动态切换)</option>
+            <option value="7">7级 - 专家 (复杂组合)</option>
+            <option value="8">8级 - 大师 (最高难度)</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <label class="setting-label">⏱️ 训练时长：</label>
+          <select id="timeSelector" class="timeSelector">
+            <option value="300">5分钟 - 快速挑战</option>
+            <option value="600" selected>10分钟 - 标准训练</option>
+            <option value="900">15分钟 - 进阶训练</option>
+            <option value="1200">20分钟 - 大师挑战</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="startGameBtn" class="start-btn" onclick="startGame()">🚀 开始游戏</button>
+    </div>
+
+    <!-- 游戏进行中 -->
+    <div id="gameSection" style="display: none;">
+      <!-- 规则提示 -->
+      <div id="ruleBanner" class="rule-banner">
+        📜 当前规则：只能吃蓝色的鱼 🔵
+      </div>
+
+      <!-- 信息栏 -->
+      <div class="info-bar">
+        <!-- 规则显示在左侧 -->
+        <div class="rule-display" id="ruleDisplay">
+          📜 当前规则：只能吃蓝色的鱼 🔵
+        </div>
+
+        <!-- 数据项显示在右侧 -->
+        <div class="info-items">
+          <div class="info-item">
+            <span class="info-label">⏱️ 剩余时间</span>
+            <span class="info-value timer" id="timeLeft">5:00</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">💰 金币</span>
+            <span class="info-value" id="coins">0</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">🎯 正确</span>
+            <span class="info-value" id="correctCount">0</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">❌ 错误</span>
+            <span class="info-value" id="errorCount">0</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">⭐ 分数</span>
+            <span class="info-value" id="score">0</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">🐟 成长</span>
+            <span class="info-value" id="growthStage">小鱼苗</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 暂停按钮 -->
+      <button id="pauseBtn" class="pause-btn" onclick="togglePause()">⏸️ 暂停</button>
+
+      <!-- 游戏区域 -->
+      <div id="gameArea" class="game-area">
+        <!-- 玩家鱼 -->
+        <div id="playerFish" class="player-fish">🐠</div>
+
+        <!-- 装饰气泡 -->
+        <div class="bubble" style="left: 10%; animation-delay: 0s;"></div>
+        <div class="bubble" style="left: 30%; animation-delay: 1s;"></div>
+        <div class="bubble" style="left: 50%; animation-delay: 2s;"></div>
+        <div class="bubble" style="left: 70%; animation-delay: 3s;"></div>
+        <div class="bubble" style="left: 90%; animation-delay: 4s;"></div>
+      </div>
+
+      <!-- 技能栏 -->
+      <div class="skill-bar">
+        <div class="skill-item" id="skill-dash" onclick="useSkill('dash')">
+          <div class="skill-icon">⚡</div>
+          <div class="skill-name">闪现</div>
+          <div class="skill-progress">0/5</div>
+        </div>
+        <div class="skill-item" id="skill-shield" onclick="useSkill('shield')">
+          <div class="skill-icon">🛡️</div>
+          <div class="skill-name">护盾</div>
+          <div class="skill-progress">❌</div>
+        </div>
+        <div class="skill-item" id="skill-magnet" onclick="useSkill('magnet')">
+          <div class="skill-icon">🧲</div>
+          <div class="skill-name">磁力</div>
+          <div class="skill-progress">❌</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // ===== 游戏状态 =====
+    let sessionId = {{.ID}};
+    let gameStarted = false;
+    let gamePaused = false;
+    let gameEnded = false;
+
+    // 游戏设置
+    let level = 4;
+    let gameDuration = 600; // 秒
+    let timeLeft = gameDuration;
+
+    // 游戏数据
+    let coins = 0;
+    let correctCount = 0;
+    let errorCount = 0;
+    let score = 0;
+    let combo = 0;
+    let playerSize = 1;
+
+    // 规则系统
+    let currentRule = null;
+    let ruleChangeTimer = null;
+
+    // 鱼类数据
+    let fishes = [];
+    let fishId = 0;
+
+    // 技能系统
+    let skills = {
+      dash: { ready: false, progress: 0, required: 5, cooldown: 0 },
+      shield: { ready: false, active: false, duration: 0 },
+      magnet: { ready: false, active: false, duration: 0 }
+    };
+
+    // 轮次记录
+    let roundNumber = 0;
+    let currentRoundId = 0;
+    let roundStartTime = 0;
+
+    // 玩家位置和移动
+    let playerX = 400;
+    let playerY = 300;
+    let playerVX = 0;
+    let playerVY = 0;
+    let playerSpeed = 3;
+    let playerDirection = 1; // 1: 右, -1: 左
+    let targetX = 400;
+    let targetY = 300;
+    let isMoving = false;
+
+    // 定时器
+    let gameTimer = null;
+    let fishSpawnTimer = null;
+    let fishMoveTimer = null;
+    let ruleTimer = null;
+    let ruleWarningTimer = null;
+
+    // ===== 音效系统 =====
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioContext = null;
+    let backgroundMusic = null;
+
+    // 初始化音频上下文
+    function initAudio() {
+      if (!audioContext) {
+        audioContext = new AudioContext();
+      }
+      // 恢复音频上下文（某些浏览器需要用户交互后才能播放）
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+    }
+
+    // 吃对鱼的音效（叮！上升音）
+    function playCorrectSound() {
+      if (!audioContext) return;
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+      oscillator.frequency.exponentialRampToValueAtTime(783.99, audioContext.currentTime + 0.1); // G5
+
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.2);
+    }
+
+    // 吃错鱼的音效（低沉的错误音）
+    function playWrongSound() {
+      if (!audioContext) return;
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.type = 'sawtooth';
+      oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 0.2);
+
+      gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+    }
+
+    // 规则变化警告音（3秒倒计时，滴滴滴）
+    function playRuleWarningSound() {
+      if (!audioContext) return;
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => {
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          oscillator.frequency.value = 880; // A5
+          gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + 0.1);
+        }, i * 1000);
+      }
+    }
+
+    // 规则变化完成音（新规则出现）
+    function playRuleChangeSound() {
+      if (!audioContext) return;
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4
+      oscillator.frequency.setValueAtTime(554.37, audioContext.currentTime + 0.1); // C#5
+      oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.2); // E5
+
+      gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.4);
+    }
+
+    // 背景音乐（紧张刺激的节奏）
+    function startBackgroundMusic() {
+      if (!audioContext) return;
+
+      // 创建节奏性的音符
+      const playNote = (frequency, startTime, duration, type = 'square') => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.type = type;
+        oscillator.frequency.value = frequency;
+
+        gainNode.gain.setValueAtTime(0.05, startTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+      };
+
+      // 紧张的低音节奏 + 快速旋律
+      const bassLine = [
+        110, 110, 110, 110,  // A2 (低音持续)
+        116.54, 116.54, 116.54, 116.54  // A#2
+      ];
+
+      const melody = [
+        440, 523.25, 587.33, 659.25,  // A4 C5 D5 E5 (上升)
+        659.25, 587.33, 523.25, 440,  // E5 D5 C5 A4 (下降)
+        493.88, 587.33, 659.25, 698.46, // B4 D5 E5 F5 (再上升)
+        698.46, 659.25, 587.33, 523.25  // F5 E5 D5 C5 (收尾)
+      ];
+
+      let time = audioContext.currentTime;
+      const bassNoteLength = 0.15;  // 快速低音节奏
+      const melodyNoteLength = 0.3;  // 旋律音符
+
+      const playMelody = () => {
+        if (gameEnded || gamePaused) {
+          setTimeout(playMelody, 1000);
+          return;
+        }
+
+        // 播放低音节奏（制造紧张感）
+        bassLine.forEach((freq, index) => {
+          playNote(freq, time + (index * bassNoteLength), bassNoteLength * 0.8, 'square');
+        });
+
+        // 播放旋律（制造追逐感）
+        melody.forEach((freq, index) => {
+          playNote(freq, time + (index * melodyNoteLength), melodyNoteLength * 0.8, 'triangle');
+        });
+
+        time = time + melody.length * melodyNoteLength + 0.2; // 短暂间隔
+        setTimeout(playMelody, (melody.length * melodyNoteLength + 0.2) * 1000);
+      };
+
+      playMelody();
+    }
+
+    // 停止背景音乐
+    function stopBackgroundMusic() {
+      // 背景音乐会在下次循环时检查 gameEnded 标志自动停止
+    }
+
+    // ===== 鱼类定义 =====
+    // 每种颜色只用一个固定的emoji，避免混淆
+    const fishTypes = {
+      red: '🐡',      // 红色河豚
+      blue: '🐟',     // 蓝色鱼
+      yellow: '🐠',   // 黄色热带鱼
+      green: '🐢',    // 绿色海龟
+      purple: '🐙',   // 紫色章鱼
+      orange: '🦐',   // 橙色虾
+      pink: '🦑'      // 粉色鱿鱼
+    };
+
+    const colorNames = {
+      red: '红色',
+      blue: '蓝色',
+      yellow: '黄色',
+      green: '绿色',
+      purple: '紫色',
+      orange: '橙色',
+      pink: '粉色'
+    };
+
+    // ===== 难度配置 =====
+    const levelConfigs = {
+      1: { fishCount: 8, fishSpeed: 1, ruleType: 'color', ruleChangeInterval: 60 },
+      2: { fishCount: 10, fishSpeed: 1.2, ruleType: 'color', ruleChangeInterval: 50 },
+      3: { fishCount: 12, fishSpeed: 1.5, ruleType: 'colorNumber', ruleChangeInterval: 45 },
+      4: { fishCount: 15, fishSpeed: 1.8, ruleType: 'colorNumber', ruleChangeInterval: 40 },
+      5: { fishCount: 18, fishSpeed: 2, ruleType: 'complex', ruleChangeInterval: 35 },
+      6: { fishCount: 20, fishSpeed: 2.5, ruleType: 'complex', ruleChangeInterval: 30 },
+      7: { fishCount: 25, fishSpeed: 3, ruleType: 'advanced', ruleChangeInterval: 25 },
+      8: { fishCount: 30, fishSpeed: 3.5, ruleType: 'advanced', ruleChangeInterval: 20 }
+    };
+
+    // ===== 游戏初始化 =====
+    function startGame() {
+      level = parseInt(document.getElementById('levelSelector').value);
+      gameDuration = parseInt(document.getElementById('timeSelector').value);
+      timeLeft = gameDuration;
+
+      // 重置数据
+      coins = 0;
+      correctCount = 0;
+      errorCount = 0;
+      score = 0;
+      combo = 0;
+      playerSize = 1;
+      fishes = [];
+
+      // 隐藏欢迎页，显示游戏
+      document.getElementById('welcomeSection').style.display = 'none';
+      document.getElementById('gameSection').style.display = 'block';
+
+      gameStarted = true;
+      gamePaused = false;
+      gameEnded = false;
+
+      // 初始化音频
+      initAudio();
+      startBackgroundMusic();
+
+      // 开始轮次记录
+      startRound();
+
+      // 生成初始规则
+      generateRule();
+
+      // 初始化玩家位置
+      const gameArea = document.getElementById('gameArea');
+      playerX = gameArea.offsetWidth / 2;
+      playerY = gameArea.offsetHeight / 2;
+      updatePlayerPosition();
+
+      // 开始游戏循环
+      startGameLoop();
+
+      // 生成初始鱼类
+      const config = levelConfigs[level];
+      for (let i = 0; i < config.fishCount; i++) {
+        spawnFish();
+      }
+    }
+
+    // ===== 开始轮次记录 =====
+    async function startRound() {
+      roundNumber++;
+      roundStartTime = Date.now();
+
+      console.log('🔵 [小鱼历险记] 开始新轮次', { sessionId, roundNumber, level });
+      try {
+        const form = new URLSearchParams();
+        form.set('session_id', sessionId);
+        form.set('round_number', roundNumber);
+        const response = await fetch('/api/session/round/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        currentRoundId = data.round_id;
+        console.log('✅ [小鱼历险记] 轮次开始成功', { roundId: currentRoundId });
+      } catch (err) {
+        console.error('❌ [小鱼历险记] 开始轮次失败:', err);
+      }
+    }
+
+    // ===== 结束轮次记录 =====
+    async function finishRound() {
+      if (!currentRoundId) {
+        console.warn('⚠️ [小鱼历险记] 没有currentRoundId，跳过轮次记录');
+        return;
+      }
+
+      const duration = Math.floor((Date.now() - roundStartTime) / 1000);
+      const accuracy = correctCount + errorCount > 0
+        ? Math.round((correctCount / (correctCount + errorCount)) * 100)
+        : 0;
+
+      const metadata = JSON.stringify({
+        level: level,
+        coins: coins,
+        score: score,
+        correct: correctCount,
+        errors: errorCount,
+        accuracy: accuracy,
+        playerSize: playerSize
+      });
+
+      console.log('🔵 [小鱼历险记] 发送轮次完成请求', { roundId: currentRoundId, duration, accuracy });
+      try {
+        const form = new URLSearchParams();
+        form.set('round_id', currentRoundId);
+        form.set('duration_seconds', duration);
+        form.set('success', errorCount === 0 ? '1' : '0');
+        form.set('score', score);
+        form.set('accuracy', accuracy);
+        form.set('metadata', metadata);
+
+        const response = await fetch('/api/session/round/finish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        console.log('✅ [小鱼历险记] 轮次记录完成', data);
+      } catch (err) {
+        console.error('❌ [小鱼历险记] 记录轮次失败:', err);
+      }
+    }
+
+    // ===== 生成规则 =====
+    function generateRule() {
+      const config = levelConfigs[level];
+      const colors = Object.keys(colorNames);
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+      // 根据难度生成不同类型的规则
+      if (config.ruleType === 'color') {
+        currentRule = {
+          type: 'color',
+          color: randomColor,
+          text: `只能吃${colorNames[randomColor]}的鱼 ${getFishEmoji(randomColor)}`
+        };
+      } else if (config.ruleType === 'colorNumber') {
+        const useNumber = Math.random() > 0.5;
+        if (useNumber) {
+          const num = Math.floor(Math.random() * 5) + 1;
+          const operator = Math.random() > 0.5 ? '<=' : '>=';
+          currentRule = {
+            type: 'number',
+            number: num,
+            operator: operator,
+            text: `只能吃数字${operator}${num}的鱼 🔢`
+          };
+        } else {
+          currentRule = {
+            type: 'color',
+            color: randomColor,
+            text: `只能吃${colorNames[randomColor]}的鱼 ${getFishEmoji(randomColor)}`
+          };
+        }
+      } else {
+        // 更复杂的规则
+        const ruleTypes = ['color', 'not-color', 'or'];
+        const selectedType = ruleTypes[Math.floor(Math.random() * ruleTypes.length)];
+
+        if (selectedType === 'not-color') {
+          currentRule = {
+            type: 'not-color',
+            color: randomColor,
+            text: `不能吃${colorNames[randomColor]}的鱼 ⛔${getFishEmoji(randomColor)}`
+          };
+        } else if (selectedType === 'or') {
+          const color2 = colors[Math.floor(Math.random() * colors.length)];
+          currentRule = {
+            type: 'or',
+            colors: [randomColor, color2],
+            text: `吃${colorNames[randomColor]}或${colorNames[color2]}的鱼 ${getFishEmoji(randomColor)}${getFishEmoji(color2)}`
+          };
+        } else {
+          currentRule = {
+            type: 'color',
+            color: randomColor,
+            text: `只能吃${colorNames[randomColor]}的鱼 ${getFishEmoji(randomColor)}`
+          };
+        }
+      }
+
+      // 更新规则显示（同时更新两个位置以保持兼容）
+      const ruleText = `📜 ${currentRule.text}`;
+      document.getElementById('ruleBanner').textContent = ruleText;
+      document.getElementById('ruleDisplay').textContent = ruleText;
+
+      // 播放规则变化音效
+      playRuleChangeSound();
+
+      // 设置下次规则切换（提前3秒警告）
+      if (ruleTimer) clearTimeout(ruleTimer);
+      if (ruleWarningTimer) clearTimeout(ruleWarningTimer);
+
+      const interval = config.ruleChangeInterval * 1000;
+
+      // 提前3秒播放警告音
+      ruleWarningTimer = setTimeout(() => {
+        playRuleWarningSound();
+      }, interval - 3000);
+
+      // 规则切换
+      ruleTimer = setTimeout(() => {
+        generateRule();
+      }, interval);
+    }
+
+    function getFishEmoji(color) {
+      return fishTypes[color];
+    }
+
+    // ===== 生成鱼 =====
+    function spawnFish() {
+      const gameArea = document.getElementById('gameArea');
+      const colors = Object.keys(fishTypes);
+
+      let randomColor;
+      let fishNumber;
+
+      // 50%概率生成符合当前规则的鱼，提高可玩性
+      if (currentRule && Math.random() < 0.5) {
+        if (currentRule.type === 'color') {
+          randomColor = currentRule.color;
+        } else if (currentRule.type === 'not-color') {
+          const validColors = colors.filter(c => c !== currentRule.color);
+          randomColor = validColors[Math.floor(Math.random() * validColors.length)];
+        } else if (currentRule.type === 'or') {
+          randomColor = currentRule.colors[Math.floor(Math.random() * currentRule.colors.length)];
+        } else if (currentRule.type === 'number') {
+          randomColor = colors[Math.floor(Math.random() * colors.length)];
+          // 生成符合数字规则的数字
+          if (currentRule.operator === '<=') {
+            fishNumber = Math.floor(Math.random() * currentRule.number) + 1;
+          } else {
+            fishNumber = Math.floor(Math.random() * (8 - currentRule.number + 1)) + currentRule.number;
+          }
+        } else {
+          randomColor = colors[Math.floor(Math.random() * colors.length)];
+        }
+      } else {
+        // 50%概率随机生成
+        randomColor = colors[Math.floor(Math.random() * colors.length)];
+      }
+
+      // 如果没有指定数字，随机生成
+      if (fishNumber === undefined) {
+        fishNumber = Math.floor(Math.random() * 8) + 1;
+      }
+
+      const fishEmoji = fishTypes[randomColor]; // 每个颜色固定对应一个emoji
+
+      const fish = {
+        id: fishId++,
+        color: randomColor,
+        emoji: fishEmoji,
+        number: fishNumber,
+        x: Math.random() > 0.5 ? -50 : gameArea.offsetWidth + 50,
+        y: Math.random() * (gameArea.offsetHeight - 100) + 50,
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 1,
+        element: null
+      };
+
+      // 创建DOM元素
+      const fishEl = document.createElement('div');
+      fishEl.className = 'fish';
+      fishEl.innerHTML = `
+        <div class="fish-emoji">${fish.emoji}</div>
+        <div class="fish-number">${fish.number}</div>
+      `;
+      fishEl.style.left = fish.x + 'px';
+      fishEl.style.top = fish.y + 'px';
+      fishEl.dataset.fishId = fish.id;
+
+      fish.element = fishEl;
+      gameArea.appendChild(fishEl);
+      fishes.push(fish);
+    }
+
+    // 已经吃掉的鱼ID集合（防止重复触发）
+    let eatenFishIds = new Set();
+
+    // ===== 碰撞检测 =====
+    function checkCollisions() {
+      // 玩家的有效碰撞半径：根据玩家大小动态调整，但设置上下限
+      const playerRadius = Math.max(20, Math.min(35, 25 * playerSize));
+
+      fishes.forEach(fish => {
+        // 跳过已经在处理中的鱼
+        if (eatenFishIds.has(fish.id)) return;
+
+        const dx = fish.x - playerX;
+        const dy = fish.y - playerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // 鱼的碰撞半径设置为固定值
+        const fishRadius = 20;
+
+        // 碰撞判定：需要真正靠近才算碰撞
+        if (distance < playerRadius + fishRadius) {
+          // 标记为已处理，防止重复触发
+          eatenFishIds.add(fish.id);
+          // 发生碰撞！
+          eatFish(fish.id);
+        }
+      });
+    }
+
+    // ===== 吃掉鱼 =====
+    function eatFish(fishId) {
+      const fish = fishes.find(f => f.id === fishId);
+      if (!fish) return;
+
+      // 检查是否符合规则
+      const isCorrect = checkRule(fish);
+
+      if (isCorrect) {
+        // 正确！
+        correctCount++;
+        coins += 10;
+        score += 50 + (combo * 10);
+        combo++;
+        const oldSize = playerSize;
+        playerSize = Math.min(playerSize + 0.05, 2.5); // 最大2.5倍
+
+        // 播放正确音效
+        playCorrectSound();
+
+        // 视觉反馈：长大
+        const playerFish = document.getElementById('playerFish');
+        playerFish.classList.add('grow');
+        setTimeout(() => {
+          playerFish.classList.remove('grow');
+        }, 500);
+
+        // 视觉反馈：鱼的闪光
+        fish.element.classList.add('correct-flash');
+
+        // 更新技能进度
+        skills.dash.progress++;
+        if (skills.dash.progress >= skills.dash.required) {
+          skills.dash.ready = true;
+        }
+
+        // 移除鱼（不在这里生成新鱼，由moveFishes统一管理）
+        setTimeout(() => {
+          fish.element.remove();
+          fishes = fishes.filter(f => f.id !== fishId);
+          // 从已吃鱼集合中移除
+          eatenFishIds.delete(fishId);
+        }, 300);
+
+      } else {
+        // 错误！
+        errorCount++;
+        combo = 0;
+        const oldSize = playerSize;
+        playerSize = Math.max(0.6, playerSize - 0.08); // 最小0.6倍
+
+        // 播放错误音效
+        playWrongSound();
+
+        // 视觉反馈：缩小
+        const playerFish = document.getElementById('playerFish');
+        playerFish.classList.add('shrink');
+        setTimeout(() => {
+          playerFish.classList.remove('shrink');
+        }, 500);
+
+        // 视觉反馈：鱼的闪光
+        fish.element.classList.add('wrong-flash');
+
+        // 移除鱼（不在这里生成新鱼，由moveFishes统一管理）
+        setTimeout(() => {
+          fish.element.remove();
+          fishes = fishes.filter(f => f.id !== fishId);
+          // 从已吃鱼集合中移除
+          eatenFishIds.delete(fishId);
+        }, 300);
+      }
+
+      // 更新显示
+      updateUI();
+    }
+
+    // ===== 检查规则 =====
+    function checkRule(fish) {
+      if (!currentRule) return false;
+
+      if (currentRule.type === 'color') {
+        return fish.color === currentRule.color;
+      } else if (currentRule.type === 'not-color') {
+        return fish.color !== currentRule.color;
+      } else if (currentRule.type === 'or') {
+        return currentRule.colors.includes(fish.color);
+      } else if (currentRule.type === 'number') {
+        if (currentRule.operator === '<=') {
+          return fish.number <= currentRule.number;
+        } else {
+          return fish.number >= currentRule.number;
+        }
+      }
+      return false;
+    }
+
+    // ===== 移动鱼 =====
+    function moveFishes() {
+      if (gamePaused || gameEnded) return;
+
+      const config = levelConfigs[level];
+      const gameArea = document.getElementById('gameArea');
+      const maxFishCount = config.fishCount;
+      const fishesToRemove = [];
+
+      fishes.forEach(fish => {
+        // 检查这条鱼是否符合规则
+        const isCorrectFish = checkRule(fish);
+
+        // 不符合规则的鱼会追逐玩家（增加难度）
+        if (!isCorrectFish && currentRule) {
+          const dx = playerX - fish.x;
+          const dy = playerY - fish.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance > 50) { // 距离玩家较远时才追逐
+            const chaseSpeed = config.fishSpeed * 0.6; // 追逐速度稍慢
+            fish.vx = (dx / distance) * chaseSpeed;
+            fish.vy = (dy / distance) * chaseSpeed;
+          }
+        }
+
+        fish.x += fish.vx * config.fishSpeed;
+        fish.y += fish.vy * config.fishSpeed;
+
+        // 边界检查
+        if (fish.x < -100 || fish.x > gameArea.offsetWidth + 100 ||
+            fish.y < -100 || fish.y > gameArea.offsetHeight + 100) {
+          // 标记要移除的鱼
+          fishesToRemove.push(fish.id);
+          fish.element.remove();
+          return;
+        }
+
+        // 更新位置
+        fish.element.style.left = fish.x + 'px';
+        fish.element.style.top = fish.y + 'px';
+      });
+
+      // 移除超出边界的鱼
+      if (fishesToRemove.length > 0) {
+        fishes = fishes.filter(f => !fishesToRemove.includes(f.id));
+      }
+
+      // 保持鱼的数量
+      while (fishes.length < maxFishCount) {
+        spawnFish();
+      }
+    }
+
+    // ===== 玩家控制 =====
+    document.addEventListener('DOMContentLoaded', () => {
+      const gameArea = document.getElementById('gameArea');
+      let clickTimeout = null;
+
+      // 使用 mousedown 代替 click，避免双击延迟
+      gameArea.addEventListener('mousedown', (e) => {
+        if (!gameStarted || gamePaused || gameEnded) return;
+
+        // 清除之前的超时
+        if (clickTimeout) {
+          clearTimeout(clickTimeout);
+        }
+
+        // 立即响应，不等待双击判断
+        const rect = gameArea.getBoundingClientRect();
+        targetX = e.clientX - rect.left;
+        targetY = e.clientY - rect.top;
+        isMoving = true;
+
+        // 显示点击目标指示器
+        showClickTarget(targetX, targetY);
+
+        // 计算移动方向
+        const dx = targetX - playerX;
+        const dy = targetY - playerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance > 5) {
+          playerVX = (dx / distance) * playerSpeed;
+          playerVY = (dy / distance) * playerSpeed;
+
+          // 更新小鱼朝向
+          if (dx > 0) {
+            playerDirection = -1;  // 向右移动，需要翻转
+          } else {
+            playerDirection = 1;   // 向左移动，保持原样
+          }
+        }
+      });
+
+      // 防止文本选择
+      gameArea.addEventListener('selectstart', (e) => {
+        e.preventDefault();
+      });
+    });
+
+    // 显示点击目标指示器
+    function showClickTarget(x, y) {
+      const gameArea = document.getElementById('gameArea');
+      const target = document.createElement('div');
+      target.className = 'click-target';
+      target.style.left = (x - 15) + 'px';
+      target.style.top = (y - 15) + 'px';
+      gameArea.appendChild(target);
+
+      setTimeout(() => {
+        target.remove();
+      }, 500);
+    }
+
+    // 移动玩家
+    function movePlayer() {
+      if (!isMoving || gamePaused || gameEnded) return;
+
+      const distance = Math.sqrt(
+        (targetX - playerX) * (targetX - playerX) +
+        (targetY - playerY) * (targetY - playerY)
+      );
+
+      if (distance < 5) {
+        isMoving = false;
+        playerVX = 0;
+        playerVY = 0;
+        const playerFish = document.getElementById('playerFish');
+        playerFish.classList.remove('eating');
+        return;
+      }
+
+      playerX += playerVX;
+      playerY += playerVY;
+
+      // 边界检查
+      const gameArea = document.getElementById('gameArea');
+      playerX = Math.max(30, Math.min(playerX, gameArea.offsetWidth - 30));
+      playerY = Math.max(30, Math.min(playerY, gameArea.offsetHeight - 30));
+
+      // 更新方向：根据当前速度方向
+      if (playerVX > 0) {
+        playerDirection = -1;  // 向右移动，需要翻转（因为emoji默认朝左）
+      } else if (playerVX < 0) {
+        playerDirection = 1; // 向左移动，保持原样
+      }
+
+      updatePlayerPosition();
+
+      // 移动时显示张嘴动画
+      const playerFish = document.getElementById('playerFish');
+      playerFish.classList.add('eating');
+
+      // 碰撞检测
+      checkCollisions();
+    }
+
+    function updatePlayerPosition() {
+      const playerFish = document.getElementById('playerFish');
+      playerFish.style.left = (playerX - 24) + 'px';
+      playerFish.style.top = (playerY - 24) + 'px';
+
+      // 根据方向翻转小鱼，同时应用大小缩放
+      // playerDirection: 1=向右(正常), -1=向左(翻转)
+      const flipX = playerDirection === 1 ? 1 : -1;
+
+      // 使用transform控制大小和方向
+      // scaleX负值会水平翻转，scaleY控制垂直大小
+      playerFish.style.transform = `scaleX(${flipX * playerSize}) scaleY(${playerSize})`;
+
+      // 同时更新font-size来真正改变鱼的大小
+      const baseFontSize = 3; // 基础3rem
+      playerFish.style.fontSize = `${baseFontSize * playerSize}rem`;
+    }
+
+    // ===== 更新UI =====
+    function updateUI() {
+      document.getElementById('coins').textContent = coins;
+      document.getElementById('correctCount').textContent = correctCount;
+      document.getElementById('errorCount').textContent = errorCount;
+      document.getElementById('score').textContent = score;
+
+      // 更新成长阶段
+      let stage = '小鱼苗';
+      if (score >= 500) stage = '海龙王';
+      else if (score >= 200) stage = '巨鲸';
+      else if (score >= 100) stage = '大鱼';
+      else if (score >= 50) stage = '中鱼';
+      else if (score >= 20) stage = '小鱼';
+      document.getElementById('growthStage').textContent = stage;
+
+      // 更新技能显示
+      updateSkillUI();
+    }
+
+    function updateSkillUI() {
+      // 闪现技能
+      const dashEl = document.getElementById('skill-dash');
+      if (skills.dash.ready) {
+        dashEl.classList.add('ready');
+        dashEl.classList.remove('cooldown');
+        dashEl.querySelector('.skill-progress').textContent = '✓';
+      } else if (skills.dash.cooldown > 0) {
+        dashEl.classList.add('cooldown');
+        dashEl.classList.remove('ready');
+        dashEl.querySelector('.skill-progress').textContent = `⏱️${skills.dash.cooldown}s`;
+      } else {
+        dashEl.classList.remove('ready', 'cooldown');
+        dashEl.querySelector('.skill-progress').textContent = `${skills.dash.progress}/${skills.dash.required}`;
+      }
+
+      // 护盾技能
+      const shieldEl = document.getElementById('skill-shield');
+      if (skills.shield.active) {
+        shieldEl.classList.add('ready');
+        shieldEl.querySelector('.skill-progress').textContent = `${Math.ceil(skills.shield.duration)}s`;
+      } else if (correctCount >= 10 && errorCount === 0) {
+        shieldEl.classList.add('ready');
+        shieldEl.classList.remove('cooldown');
+        shieldEl.querySelector('.skill-progress').textContent = '✓';
+      } else {
+        shieldEl.classList.remove('ready', 'cooldown');
+        shieldEl.querySelector('.skill-progress').textContent = '❌';
+      }
+
+      // 磁力技能
+      const magnetEl = document.getElementById('skill-magnet');
+      if (skills.magnet.active) {
+        magnetEl.classList.add('ready');
+        magnetEl.querySelector('.skill-progress').textContent = `${Math.ceil(skills.magnet.duration)}s`;
+      } else if (coins >= 50) {
+        magnetEl.classList.add('ready');
+        magnetEl.classList.remove('cooldown');
+        magnetEl.querySelector('.skill-progress').textContent = '✓';
+      } else {
+        magnetEl.classList.remove('ready', 'cooldown');
+        magnetEl.querySelector('.skill-progress').textContent = `${coins}/50`;
+      }
+    }
+
+    // ===== 使用技能 =====
+    function useSkill(skillName) {
+      if (gamePaused || gameEnded) return;
+
+      if (skillName === 'dash' && skills.dash.ready) {
+        // 闪现技能：短距离瞬移
+        alert('闪现技能已使用！（功能待实现）');
+        skills.dash.ready = false;
+        skills.dash.progress = 0;
+        skills.dash.cooldown = 10;
+      } else if (skillName === 'shield' && !skills.shield.active) {
+        if (correctCount >= 10 && errorCount === 0) {
+          skills.shield.active = true;
+          skills.shield.duration = 5;
+          alert('护盾技能激活！5秒内吃错鱼不扣分！');
+        }
+      } else if (skillName === 'magnet' && !skills.magnet.active) {
+        if (coins >= 50) {
+          skills.magnet.active = true;
+          skills.magnet.duration = 3;
+          coins -= 50;
+          alert('磁力技能激活！3秒内自动吸引金币！');
+        }
+      }
+
+      updateUI();
+    }
+
+    // ===== 游戏主循环 =====
+    function startGameLoop() {
+      // 计时器
+      gameTimer = setInterval(() => {
+        if (gamePaused || gameEnded) return;
+
+        timeLeft--;
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        document.getElementById('timeLeft').textContent =
+          `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+        // 技能冷却
+        if (skills.dash.cooldown > 0) skills.dash.cooldown--;
+        if (skills.shield.active) {
+          skills.shield.duration -= 0.1;
+          if (skills.shield.duration <= 0) skills.shield.active = false;
+        }
+        if (skills.magnet.active) {
+          skills.magnet.duration -= 0.1;
+          if (skills.magnet.duration <= 0) skills.magnet.active = false;
+        }
+
+        updateUI();
+
+        // 游戏结束
+        if (timeLeft <= 0) {
+          endGame();
+        }
+      }, 1000);
+
+      // 鱼类移动
+      fishMoveTimer = setInterval(() => {
+        moveFishes();
+      }, 50);
+
+      // 玩家移动
+      setInterval(() => {
+        movePlayer();
+      }, 1000 / 60); // 60 FPS
+    }
+
+    // ===== 暂停/继续 =====
+    function togglePause() {
+      gamePaused = !gamePaused;
+      document.getElementById('pauseBtn').textContent = gamePaused ? '▶️ 继续' : '⏸️ 暂停';
+    }
+
+    // ===== 游戏结束 =====
+    async function endGame() {
+      gameEnded = true;
+      clearInterval(gameTimer);
+      clearInterval(fishMoveTimer);
+      clearTimeout(ruleTimer);
+      clearTimeout(ruleWarningTimer);
+      stopBackgroundMusic();
+
+      // 记录轮次
+      await finishRound();
+
+      // 显示结果
+      const accuracy = correctCount + errorCount > 0
+        ? Math.round((correctCount / (correctCount + errorCount)) * 100)
+        : 0;
+
+      const gameOverHTML = `
+        <div class="game-over">
+          <h2>🎮 游戏结束！</h2>
+          <div class="stats">
+            <div>⭐ 最终分数：<strong>${score}</strong></div>
+            <div>💰 金币收集：<strong>${coins}</strong></div>
+            <div>🎯 正确率：<strong>${accuracy}%</strong></div>
+            <div>✅ 正确次数：<strong>${correctCount}</strong></div>
+            <div>❌ 错误次数：<strong>${errorCount}</strong></div>
+            <div>🐟 最终形态：<strong>${document.getElementById('growthStage').textContent}</strong></div>
+          </div>
+          <button class="restart-btn" onclick="location.reload()">重新开始</button>
+          <form action="/session/finish" method="post" style="display:inline">
+            <input type="hidden" name="id" value="${sessionId}" />
+            <button type="submit" class="finish-btn">结束训练</button>
+          </form>
+        </div>
+      `;
+
+      document.body.insertAdjacentHTML('beforeend', gameOverHTML);
+    }
+  </script>
+</body>
+</html>
