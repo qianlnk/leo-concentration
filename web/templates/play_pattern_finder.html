@@ -1,0 +1,1387 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>连珠大师 - Leo专注力训练</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* 头部 */
+    header {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 0.4rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: white;
+      height: 36px;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+    header nav a {
+      color: white;
+      text-decoration: none;
+      padding: 0.3rem 0.8rem;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      transition: all 0.3s;
+      font-size: 0.8rem;
+    }
+    header nav a:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    /* 信息栏 */
+    .info-bar {
+      background: rgba(255, 255, 255, 0.95);
+      padding: 0.4rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      height: 54px;
+    }
+    .info-left, .info-right {
+      display: flex;
+      gap: 1.2rem;
+      align-items: center;
+    }
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .info-label {
+      font-size: 0.65rem;
+      color: #666;
+    }
+    .info-value {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #667eea;
+    }
+    .info-value.timer {
+      color: #e24a68;
+      font-size: 1.2rem;
+    }
+
+    /* 难度选择 */
+    .level-select {
+      display: flex;
+      gap: 0.3rem;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+    .level-select select {
+      padding: 0.3rem 0.5rem;
+      border: 2px solid #667eea;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: white;
+      color: #667eea;
+      cursor: pointer;
+    }
+
+    /* 控制按钮 */
+    .btn {
+      padding: 0.3rem 0.8rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-start {
+      background: #28a745;
+      color: white;
+    }
+    .btn-start:hover {
+      background: #218838;
+    }
+    .btn-finish {
+      background: #4ab3e2;
+      color: white;
+    }
+    .btn-finish:hover {
+      background: #3a9dcf;
+    }
+
+    /* 游戏区域 */
+    .game-container {
+      display: none; /* 初始隐藏，点击开始后显示 */
+      justify-content: center;
+      align-items: center;
+      height: calc(100vh - 90px);
+      padding: 0.3rem;
+    }
+    .game-container.active {
+      display: flex;
+    }
+
+    /* 棋盘 */
+    #gameBoard {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      padding: 0.3rem;
+      position: relative;
+    }
+    .board-grid {
+      display: grid;
+      grid-template-columns: repeat(15, 1fr);
+      gap: 1px;
+      background: #ccc;
+      border: 2px solid #999;
+      position: relative;
+    }
+    .cell {
+      width: 56px;
+      height: 56px;
+      background: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 2.8rem;
+      cursor: crosshair;
+      position: relative;
+      transition: background 0.1s;
+    }
+    .cell:hover {
+      background: #f8f8f8;
+    }
+    .cell.selected {
+      background: #fffacd !important;
+      box-shadow: inset 0 0 10px rgba(255, 215, 0, 0.6);
+    }
+    .cell.found {
+      background: #90ee90 !important;
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* 画线 SVG 层 */
+    #lineCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .selection-line {
+      stroke: #ffd700;
+      stroke-width: 5;
+      stroke-linecap: round;
+      fill: none;
+      opacity: 0.9;
+    }
+    .found-line {
+      stroke: #28a745;
+      stroke-width: 5;
+      stroke-linecap: round;
+      fill: none;
+      opacity: 0.7;
+    }
+
+    /* 欢迎屏幕 */
+    .welcome-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .welcome-content {
+      background: white;
+      padding: 2rem;
+      border-radius: 16px;
+      text-align: center;
+      max-width: 550px;
+      box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+    }
+    .welcome-content h2 {
+      color: #667eea;
+      font-size: 2rem;
+      margin: 0 0 1rem 0;
+    }
+    .welcome-content p {
+      color: #555;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin: 0.6rem 0;
+    }
+    .welcome-content .rules {
+      background: #f8f9fa;
+      padding: 1rem;
+      border-radius: 10px;
+      margin: 1rem 0;
+      text-align: left;
+    }
+    .welcome-content .rules ul {
+      margin: 0.3rem 0;
+      padding-left: 1.5rem;
+    }
+    .welcome-content .rules li {
+      margin: 0.3rem 0;
+      color: #333;
+      font-size: 0.9rem;
+    }
+
+    /* 结束屏幕 */
+    .end-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .end-content {
+      background: white;
+      padding: 2rem;
+      border-radius: 16px;
+      text-align: center;
+      max-width: 450px;
+      box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+    }
+    .end-content h2 {
+      color: #28a745;
+      font-size: 2rem;
+      margin: 0 0 1rem 0;
+    }
+    .end-content p {
+      color: #555;
+      font-size: 1rem;
+      margin: 0.6rem 0;
+    }
+    .end-content .stats {
+      background: #f8f9fa;
+      padding: 1rem;
+      border-radius: 10px;
+      margin: 1rem 0;
+    }
+    .end-content .stats div {
+      margin: 0.3rem 0;
+      font-size: 0.95rem;
+      color: #333;
+    }
+  </style>
+  <script>
+    let sessionId = {{.ID}};
+    let gameStarted = false;
+    let gameEnded = false;
+    let elapsedTime = 0;
+    let timer = null;
+    let currentRoundId = 0;
+
+    // 游戏配置
+    const BOARD_SIZE = 15;
+    let currentLevel = 1;
+    const LEVELS = {
+      1: { name: '入门级', targetCount: 4 },
+      2: { name: '初级', targetCount: 8 },
+      3: { name: '中级', targetCount: 10 },
+      4: { name: '高级', targetCount: 12 },
+      5: { name: '专家级', targetCount: 14 },
+      6: { name: '大师级', targetCount: 16 }
+    };
+
+    // 简单的图案样式（参考PDF）- 4种不同图案
+    const PATTERNS = ['⚫', '⚪', '⬛', '⬜'];
+
+    // 棋盘数据
+    let board = []; // 15x15 二维数组，存储图案类型（0-3）
+    let boardPatterns = []; // 存储每个格子的具体图案
+    let allPatterns = []; // 所有可能的4连珠
+    let targetPatterns = []; // 本关需要找到的连珠
+    let foundPatterns = []; // 已找到的连珠
+
+    // 鼠标选择
+    let isSelecting = false;
+    let selectedCells = [];
+    let selectionLine = null; // SVG线条元素
+
+    // 初始化UI
+    function updateUI() {
+      document.getElementById('timeValue').textContent = elapsedTime + ' 秒';
+      document.getElementById('foundValue').textContent = foundPatterns.length;
+      document.getElementById('targetValue').textContent = targetPatterns.length;
+      document.getElementById('accuracyValue').textContent =
+        targetPatterns.length > 0 ? Math.round(foundPatterns.length / targetPatterns.length * 100) + '%' : '0%';
+
+      // 显示当前难度
+      if (gameStarted && LEVELS[currentLevel]) {
+        document.getElementById('currentLevelDisplay').textContent = LEVELS[currentLevel].name;
+      }
+    }
+
+    // 生成棋盘（只允许恰好4个相同图案连续，不允许5个或更多）
+    function generateBoard() {
+      board = [];
+      boardPatterns = [];
+      for (let i = 0; i < BOARD_SIZE; i++) {
+        board[i] = [];
+        boardPatterns[i] = [];
+        for (let j = 0; j < BOARD_SIZE; j++) {
+          board[i][j] = -1; // 初始化为-1
+          boardPatterns[i][j] = '';
+        }
+      }
+
+      // 逐个填充格子，严格避免出现5连
+      for (let i = 0; i < BOARD_SIZE; i++) {
+        for (let j = 0; j < BOARD_SIZE; j++) {
+          let availablePatterns = [0, 1, 2, 3]; // 所有可用图案
+
+          // 检查每个图案是否会导致5连
+          const directions = [
+            [0, 1],   // 横向
+            [1, 0],   // 竖向
+            [1, 1],   // 左上到右下
+            [1, -1]   // 右上到左下
+          ];
+
+          for (let patternIndex of [0, 1, 2, 3]) {
+            for (let [dr, dc] of directions) {
+              // 检查如果放置这个图案，是否会形成5连或更多
+              let count = countChainLength(i, j, patternIndex, dr, dc);
+              if (count >= 5) {
+                availablePatterns = availablePatterns.filter(p => p !== patternIndex);
+                break;
+              }
+            }
+          }
+
+          // 如果所有图案都被排除，选择最安全的
+          if (availablePatterns.length === 0) {
+            // 计算每个图案会形成的最大连续数
+            let safestPattern = 0;
+            let minChain = 999;
+            for (let p of [0, 1, 2, 3]) {
+              let maxChain = 0;
+              for (let [dr, dc] of directions) {
+                let count = countChainLength(i, j, p, dr, dc);
+                maxChain = Math.max(maxChain, count);
+              }
+              if (maxChain < minChain) {
+                minChain = maxChain;
+                safestPattern = p;
+              }
+            }
+            availablePatterns = [safestPattern];
+          }
+
+          // 从可用图案中随机选择
+          let patternIndex = availablePatterns[Math.floor(Math.random() * availablePatterns.length)];
+          board[i][j] = patternIndex;
+          boardPatterns[i][j] = PATTERNS[patternIndex];
+        }
+      }
+    }
+
+    // 计算在(row, col)放置pattern后在direction方向上的连续长度
+    function countChainLength(row, col, pattern, dr, dc) {
+      // 向反方向延伸计数
+      let backCount = 0;
+      let r = row - dr;
+      let c = col - dc;
+      while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === pattern) {
+        backCount++;
+        r -= dr;
+        c -= dc;
+      }
+
+      // 向正方向延伸计数
+      let forwardCount = 0;
+      r = row + dr;
+      c = col + dc;
+      while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === pattern) {
+        forwardCount++;
+        r += dr;
+        c += dc;
+      }
+
+      // 总连续数 = 反向 + 当前(1) + 正向
+      return backCount + 1 + forwardCount;
+    }
+
+    // 找出所有4连珠
+    function findAllPatterns() {
+      allPatterns = [];
+      const directions = [
+        [0, 1],   // 横向
+        [1, 0],   // 竖向
+        [1, 1],   // 左上到右下
+        [1, -1]   // 右上到左下
+      ];
+
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          for (let [dr, dc] of directions) {
+            let cells = [];
+            let valid = true;
+            let pattern = board[row][col];
+
+            for (let k = 0; k < 4; k++) {
+              let r = row + k * dr;
+              let c = col + k * dc;
+              if (r < 0 || r >= BOARD_SIZE || c < 0 || c >= BOARD_SIZE) {
+                valid = false;
+                break;
+              }
+              if (board[r][c] !== pattern) {
+                valid = false;
+                break;
+              }
+              cells.push({ row: r, col: c });
+            }
+
+            if (valid) {
+              allPatterns.push({
+                cells: cells,
+                pattern: pattern,
+                key: cells.map(c => `${c.row},${c.col}`).sort().join('|')
+              });
+            }
+          }
+        }
+      }
+
+      // 去重
+      let uniquePatterns = [];
+      let keys = new Set();
+      for (let p of allPatterns) {
+        if (!keys.has(p.key)) {
+          keys.add(p.key);
+          uniquePatterns.push(p);
+        }
+      }
+      allPatterns = uniquePatterns;
+    }
+
+    // 检查两个连珠是否有重叠的格子
+    function hasOverlap(pattern1, pattern2) {
+      for (let cell1 of pattern1.cells) {
+        for (let cell2 of pattern2.cells) {
+          if (cell1.row === cell2.row && cell1.col === cell2.col) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // 选择目标连珠（确保不重叠）
+    function selectTargetPatterns(retryCount = 0) {
+      const MAX_RETRIES = 50; // 最大重试次数
+
+      if (retryCount >= MAX_RETRIES) {
+        console.error('❌ 超过最大重试次数，降低目标数量');
+        // 降低目标数量
+        let targetCount = LEVELS[currentLevel].targetCount;
+        LEVELS[currentLevel].targetCount = Math.max(3, targetCount - 2);
+        console.log('🔄 目标数量从', targetCount, '降低到', LEVELS[currentLevel].targetCount);
+        retryCount = 0;
+      }
+
+      let targetCount = LEVELS[currentLevel].targetCount;
+
+      // 如果连珠不够，重新生成
+      while (allPatterns.length < targetCount) {
+        generateBoard();
+        findAllPatterns();
+      }
+
+      // 随机选择目标连珠，确保它们之间不重叠
+      let shuffled = [...allPatterns].sort(() => Math.random() - 0.5);
+      targetPatterns = [];
+
+      for (let pattern of shuffled) {
+        if (targetPatterns.length >= targetCount) break;
+
+        // 检查是否与已选择的目标重叠
+        let overlaps = false;
+        for (let existing of targetPatterns) {
+          if (hasOverlap(pattern, existing)) {
+            overlaps = true;
+            break;
+          }
+        }
+
+        // 如果不重叠，添加到目标列表
+        if (!overlaps) {
+          targetPatterns.push(pattern);
+        }
+      }
+
+      // 如果找不到足够的不重叠连珠，重新生成棋盘
+      if (targetPatterns.length < targetCount) {
+        console.log(`⚠️ 找不到足够的不重叠连珠 (${targetPatterns.length}/${targetCount})，重新生成棋盘 (重试 ${retryCount + 1}/${MAX_RETRIES})`);
+        generateBoard();
+        findAllPatterns();
+        selectTargetPatterns(retryCount + 1);
+        return;
+      }
+
+      // 验证确实没有重叠
+      console.log('🔍 验证目标连珠是否真的不重叠...');
+      let hasAnyOverlap = false;
+      for (let i = 0; i < targetPatterns.length; i++) {
+        for (let j = i + 1; j < targetPatterns.length; j++) {
+          if (hasOverlap(targetPatterns[i], targetPatterns[j])) {
+            console.error('❌ 发现重叠！', {
+              pattern1: targetPatterns[i],
+              pattern2: targetPatterns[j]
+            });
+            hasAnyOverlap = true;
+          }
+        }
+      }
+
+      if (hasAnyOverlap) {
+        console.error('❌ 目标连珠有重叠，重新生成！');
+        generateBoard();
+        findAllPatterns();
+        selectTargetPatterns(retryCount + 1);
+        return;
+      }
+
+      // 破坏非目标的4连珠，避免玩家找到"假目标"
+      destroyNonTargetPatterns();
+
+      foundPatterns = [];
+      console.log('✅ 选择了', targetPatterns.length, '个完全不重叠的目标连珠');
+      console.log('🎯 目标连珠列表:');
+      targetPatterns.forEach((p, idx) => {
+        console.log(`  ${idx + 1}. ${PATTERNS[p.pattern]} at`, p.cells);
+      });
+    }
+
+    // 破坏非目标的4连珠
+    function destroyNonTargetPatterns() {
+      // 获取所有目标格子的集合
+      let targetCells = new Set();
+      for (let target of targetPatterns) {
+        for (let cell of target.cells) {
+          targetCells.add(`${cell.row},${cell.col}`);
+        }
+      }
+
+      // 获取所有目标的key
+      let targetKeys = new Set(targetPatterns.map(p => p.key));
+
+      // 找出所有非目标的4连珠
+      let nonTargetPatterns = allPatterns.filter(p => !targetKeys.has(p.key));
+
+      console.log('🔨 破坏非目标连珠，数量:', nonTargetPatterns.length);
+
+      // 对于每个非目标连珠，找一个不属于任何目标的格子来改变
+      for (let pattern of nonTargetPatterns) {
+        // 找出不属于目标的格子
+        let safeToChange = pattern.cells.filter(cell =>
+          !targetCells.has(`${cell.row},${cell.col}`)
+        );
+
+        if (safeToChange.length === 0) {
+          // 如果所有格子都是目标的一部分，跳过（不应该发生，因为已经检查过不重叠）
+          console.warn('⚠️ 无法破坏此连珠，所有格子都是目标:', pattern);
+          continue;
+        }
+
+        // 随机选择一个安全的格子来改变
+        let cellToChange = safeToChange[Math.floor(Math.random() * safeToChange.length)];
+        let currentPattern = board[cellToChange.row][cellToChange.col];
+
+        // 选择一个不同的图案
+        let otherPatterns = [0, 1, 2, 3].filter(p => p !== currentPattern);
+        let newPattern = otherPatterns[Math.floor(Math.random() * otherPatterns.length)];
+
+        board[cellToChange.row][cellToChange.col] = newPattern;
+        boardPatterns[cellToChange.row][cellToChange.col] = PATTERNS[newPattern];
+
+        console.log(`  🔨 破坏 (${cellToChange.row},${cellToChange.col}): ${PATTERNS[currentPattern]} → ${PATTERNS[newPattern]}`);
+      }
+
+      console.log('✅ 非目标连珠已破坏，目标连珠保持完整');
+    }
+
+    // 渲染棋盘
+    function renderBoard() {
+      const grid = document.querySelector('.board-grid');
+      grid.innerHTML = '';
+
+      for (let row = 0; row < BOARD_SIZE; row++) {
+        for (let col = 0; col < BOARD_SIZE; col++) {
+          let cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+          cell.textContent = boardPatterns[row][col];
+
+          cell.addEventListener('mousedown', onCellMouseDown);
+          cell.addEventListener('mouseenter', onCellMouseEnter);
+          cell.addEventListener('mouseup', onCellMouseUp);
+
+          grid.appendChild(cell);
+        }
+      }
+    }
+
+    // 获取格子中心坐标（相对于棋盘容器）
+    function getCellCenter(row, col) {
+      const cell = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+      if (!cell) return null;
+
+      const boardGrid = document.querySelector('.board-grid');
+      const boardRect = boardGrid.getBoundingClientRect();
+      const cellRect = cell.getBoundingClientRect();
+
+      return {
+        x: cellRect.left + cellRect.width / 2 - boardRect.left,
+        y: cellRect.top + cellRect.height / 2 - boardRect.top
+      };
+    }
+
+    // 绘制选择线
+    function drawSelectionLine() {
+      if (selectedCells.length < 2) {
+        if (selectionLine) {
+          selectionLine.remove();
+          selectionLine = null;
+        }
+        return;
+      }
+
+      const svg = document.getElementById('lineCanvas');
+      if (!svg) return;
+
+      // 删除旧线
+      if (selectionLine) {
+        selectionLine.remove();
+      }
+
+      // 创建新线
+      let pathData = '';
+      for (let i = 0; i < selectedCells.length; i++) {
+        const center = getCellCenter(selectedCells[i].row, selectedCells[i].col);
+        if (!center) continue;
+
+        if (i === 0) {
+          pathData += `M ${center.x} ${center.y}`;
+        } else {
+          pathData += ` L ${center.x} ${center.y}`;
+        }
+      }
+
+      selectionLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      selectionLine.setAttribute('d', pathData);
+      selectionLine.setAttribute('class', 'selection-line');
+      svg.appendChild(selectionLine);
+    }
+
+    // 绘制已找到的连珠线
+    function drawFoundLine(cells) {
+      const svg = document.getElementById('lineCanvas');
+      if (!svg) return;
+
+      let pathData = '';
+      for (let i = 0; i < cells.length; i++) {
+        const center = getCellCenter(cells[i].row, cells[i].col);
+        if (!center) continue;
+
+        if (i === 0) {
+          pathData += `M ${center.x} ${center.y}`;
+        } else {
+          pathData += ` L ${center.x} ${center.y}`;
+        }
+      }
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      line.setAttribute('d', pathData);
+      line.setAttribute('class', 'found-line');
+      svg.appendChild(line);
+    }
+
+    // 鼠标按下开始选择
+    function onCellMouseDown(e) {
+      if (!gameStarted || gameEnded) return;
+
+      let row = parseInt(e.currentTarget.dataset.row);
+      let col = parseInt(e.currentTarget.dataset.col);
+
+      // 检查是否是已找到的格子
+      if (e.currentTarget.classList.contains('found')) {
+        console.log('⚠️ 不能选择已找到的格子');
+        return;
+      }
+
+      // 开始新选择
+      isSelecting = true;
+      selectedCells = [];
+      selectedCells.push({ row, col });
+      e.currentTarget.classList.add('selected');
+      drawSelectionLine();
+      console.log('🖱️ 开始选择', { row, col, pattern: boardPatterns[row][col] });
+    }
+
+    // 鼠标移动经过（智能纠错模式）
+    function onCellMouseEnter(e) {
+      if (!isSelecting) return;
+
+      let row = parseInt(e.currentTarget.dataset.row);
+      let col = parseInt(e.currentTarget.dataset.col);
+
+      // 检查是否是已找到的格子
+      if (e.currentTarget.classList.contains('found')) {
+        return;
+      }
+
+      // 检查是否已选择
+      if (selectedCells.some(c => c.row === row && c.col === col)) {
+        return;
+      }
+
+      // 如果已经有4个，不再添加
+      if (selectedCells.length >= 4) {
+        return;
+      }
+
+      if (selectedCells.length > 0) {
+        let last = selectedCells[selectedCells.length - 1];
+        let dr = row - last.row;
+        let dc = col - last.col;
+
+        // 检查是否相邻（8个方向之一）
+        if (Math.abs(dr) > 1 || Math.abs(dc) > 1 || (dr === 0 && dc === 0)) {
+          return; // 不相邻，忽略
+        }
+
+        // 如果已有2个或更多格子，检查方向并自动纠错
+        if (selectedCells.length >= 2) {
+          let first = selectedCells[0];
+          let second = selectedCells[1];
+
+          // 计算已确定的方向
+          let establishedDirRow = second.row - first.row;
+          let establishedDirCol = second.col - first.col;
+          let normDirRow = establishedDirRow === 0 ? 0 : (establishedDirRow > 0 ? 1 : -1);
+          let normDirCol = establishedDirCol === 0 ? 0 : (establishedDirCol > 0 ? 1 : -1);
+
+          // 当前这一步的方向
+          let currentDirRow = dr === 0 ? 0 : (dr > 0 ? 1 : -1);
+          let currentDirCol = dc === 0 ? 0 : (dc > 0 ? 1 : -1);
+
+          // 检查方向是否一致
+          if (currentDirRow !== normDirRow || currentDirCol !== normDirCol) {
+            console.log('🔧 检测到方向偏离，自动纠正', {
+              established: { row: normDirRow, col: normDirCol },
+              current: { row: currentDirRow, col: currentDirCol }
+            });
+
+            // 尝试纠正：撤销最后一个格子，看是否能回到正确方向
+            if (selectedCells.length >= 3) {
+              let removed = selectedCells.pop();
+              let removedElement = document.querySelector(`.cell[data-row="${removed.row}"][data-col="${removed.col}"]`);
+              if (removedElement) removedElement.classList.remove('selected');
+              console.log('↩️ 撤销上一个格子', removed);
+
+              // 重新计算与倒数第二个格子的关系
+              let newLast = selectedCells[selectedCells.length - 1];
+              let newDr = row - newLast.row;
+              let newDc = col - newLast.col;
+              let newCurrentDirRow = newDr === 0 ? 0 : (newDr > 0 ? 1 : -1);
+              let newCurrentDirCol = newDc === 0 ? 0 : (newDc > 0 ? 1 : -1);
+
+              // 检查撤销后是否方向一致
+              if (newCurrentDirRow === normDirRow && newCurrentDirCol === normDirCol &&
+                  Math.abs(newDr) <= 1 && Math.abs(newDc) <= 1) {
+                console.log('✅ 纠正成功，继续正确方向');
+                // 继续添加当前格子
+              } else {
+                // 纠正失败，恢复被撤销的格子
+                selectedCells.push(removed);
+                if (removedElement) removedElement.classList.add('selected');
+                console.log('❌ 纠正失败，忽略此格子');
+                return;
+              }
+            } else {
+              // 只有2个格子时，方向改变就忽略
+              console.log('❌ 方向改变，忽略');
+              return;
+            }
+          }
+        }
+      }
+
+      // 添加格子
+      selectedCells.push({ row, col });
+      e.currentTarget.classList.add('selected');
+      drawSelectionLine();
+    }
+
+    // 鼠标松开
+    function onCellMouseUp(e) {
+      if (!isSelecting) return;
+      isSelecting = false;
+
+      // 检查选择是否有效
+      checkSelection();
+    }
+
+    // 检查选择的格子是否能形成一条直线（更智能的判断）
+    function canFormLine(cells) {
+      if (cells.length < 2) return true;
+      if (cells.length === 2) return true;
+
+      // 对于3个或更多格子，使用更可靠的方法：
+      // 检查是否所有格子都在同一条直线上（横、竖、斜）
+
+      // 先检查是否所有格子在同一行
+      if (cells.every(c => c.row === cells[0].row)) {
+        return true; // 横线
+      }
+
+      // 检查是否所有格子在同一列
+      if (cells.every(c => c.col === cells[0].col)) {
+        return true; // 竖线
+      }
+
+      // 检查是否在主对角线方向（左上到右下，row和col同步增加）
+      let dr = cells[1].row - cells[0].row;
+      let dc = cells[1].col - cells[0].col;
+
+      // 标准化方向
+      let dirRow = dr === 0 ? 0 : (dr > 0 ? 1 : -1);
+      let dirCol = dc === 0 ? 0 : (dc > 0 ? 1 : -1);
+
+      // 检查是否所有相邻格子对的方向都一致
+      for (let i = 1; i < cells.length - 1; i++) {
+        let dr2 = cells[i+1].row - cells[i].row;
+        let dc2 = cells[i+1].col - cells[i].col;
+        let dirRow2 = dr2 === 0 ? 0 : (dr2 > 0 ? 1 : -1);
+        let dirCol2 = dc2 === 0 ? 0 : (dc2 > 0 ? 1 : -1);
+
+        if (dirRow2 !== dirRow || dirCol2 !== dirCol) {
+          console.log('❌ 方向不一致', {
+            expected: {dirRow, dirCol},
+            actual: {dirRow2, dirCol2},
+            cells: [cells[i], cells[i+1]]
+          });
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    // 检查是否在同一直线上（旧函数，保留兼容）
+    function isInSameLine(cells) {
+      return canFormLine(cells);
+    }
+
+    // 检查选择
+    function checkSelection() {
+      console.log('🔍 检查选择', { length: selectedCells.length, cells: selectedCells });
+
+      if (selectedCells.length !== 4) {
+        console.log('❌ 不是4个格子');
+        clearSelection();
+        return;
+      }
+
+      // 检查图案是否相同
+      let firstPattern = board[selectedCells[0].row][selectedCells[0].col];
+      let patternIndices = selectedCells.map(c => board[c.row][c.col]);
+      let patterns = selectedCells.map(c => boardPatterns[c.row][c.col]);
+
+      console.log('🎨 检查图案', {
+        firstPattern,
+        patternIndices,
+        patterns,
+        allSame: selectedCells.every(c => board[c.row][c.col] === firstPattern)
+      });
+
+      if (!selectedCells.every(c => board[c.row][c.col] === firstPattern)) {
+        console.log('❌ 图案不同');
+        clearSelection();
+        return;
+      }
+
+      // 检查是否在一条直线上
+      if (!isValidLine(selectedCells)) {
+        console.log('❌ 不在一条直线上');
+        clearSelection();
+        return;
+      }
+
+      // 检查是否匹配目标连珠
+      let key = selectedCells.map(c => `${c.row},${c.col}`).sort().join('|');
+      let targetIndex = targetPatterns.findIndex(p => p.key === key);
+
+      console.log('🎯 检查目标', {
+        key,
+        targetIndex,
+        alreadyFound: foundPatterns.includes(key),
+        targetKeys: targetPatterns.map(p => p.key)
+      });
+
+      if (targetIndex !== -1 && !foundPatterns.includes(key)) {
+        // 找到了！
+        console.log('✅ 找到正确的连珠！');
+        foundPatterns.push(key);
+        markAsFound(selectedCells);
+        drawFoundLine(selectedCells);
+        playSuccessSound();
+        updateUI();
+
+        // 检查是否完成
+        if (foundPatterns.length === targetPatterns.length) {
+          setTimeout(endGame, 500);
+        }
+      } else {
+        // 错误
+        console.log('❌ 不是目标连珠或已找过');
+        playErrorSound();
+      }
+
+      clearSelection();
+    }
+
+    // 检查是否在一条直线上
+    function isValidLine(cells) {
+      if (cells.length !== 4) return false;
+
+      // 按行列排序
+      let sorted = [...cells].sort((a, b) => {
+        if (a.row !== b.row) return a.row - b.row;
+        return a.col - b.col;
+      });
+
+      // 检查横向
+      if (sorted.every(c => c.row === sorted[0].row)) {
+        for (let i = 1; i < 4; i++) {
+          if (sorted[i].col !== sorted[i-1].col + 1) return false;
+        }
+        return true;
+      }
+
+      // 检查竖向
+      if (sorted.every(c => c.col === sorted[0].col)) {
+        for (let i = 1; i < 4; i++) {
+          if (sorted[i].row !== sorted[i-1].row + 1) return false;
+        }
+        return true;
+      }
+
+      // 检查左上到右下
+      let dr1 = sorted[1].row - sorted[0].row;
+      let dc1 = sorted[1].col - sorted[0].col;
+      if (dr1 === dc1 && dr1 === 1) {
+        for (let i = 2; i < 4; i++) {
+          let dr = sorted[i].row - sorted[i-1].row;
+          let dc = sorted[i].col - sorted[i-1].col;
+          if (dr !== 1 || dc !== 1) return false;
+        }
+        return true;
+      }
+
+      // 检查右上到左下
+      sorted = [...cells].sort((a, b) => {
+        if (a.row !== b.row) return a.row - b.row;
+        return b.col - a.col;
+      });
+      dr1 = sorted[1].row - sorted[0].row;
+      dc1 = sorted[1].col - sorted[0].col;
+      if (dr1 === 1 && dc1 === -1) {
+        for (let i = 2; i < 4; i++) {
+          let dr = sorted[i].row - sorted[i-1].row;
+          let dc = sorted[i].col - sorted[i-1].col;
+          if (dr !== 1 || dc !== -1) return false;
+        }
+        return true;
+      }
+
+      return false;
+    }
+
+    // 标记为已找到
+    function markAsFound(cells) {
+      cells.forEach(c => {
+        let cell = document.querySelector(`.cell[data-row="${c.row}"][data-col="${c.col}"]`);
+        if (cell) cell.classList.add('found');
+      });
+    }
+
+    // 清除选择
+    function clearSelection() {
+      document.querySelectorAll('.cell.selected').forEach(el => {
+        el.classList.remove('selected');
+      });
+      selectedCells = [];
+
+      if (selectionLine) {
+        selectionLine.remove();
+        selectionLine = null;
+      }
+    }
+
+    // 音效
+    function playSuccessSound() {
+      if (!window.AudioContext && !window.webkitAudioContext) return;
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContext();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(783.99, audioContext.currentTime + 0.1);
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.2);
+    }
+
+    function playErrorSound() {
+      if (!window.AudioContext && !window.webkitAudioContext) return;
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContext();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      oscillator.type = 'sawtooth';
+      oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 0.2);
+      gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.2);
+    }
+
+    // 开始游戏
+    async function startGame() {
+      console.log('🎮 开始游戏按钮被点击');
+
+      if (gameStarted) {
+        console.log('⚠️ 游戏已经开始');
+        return;
+      }
+
+      currentLevel = parseInt(document.getElementById('levelSelect').value);
+      gameStarted = true;
+      gameEnded = false;
+      elapsedTime = 0;
+      foundPatterns = [];
+
+      console.log('✅ 初始化游戏状态', { level: currentLevel });
+
+      // 生成棋盘
+      generateBoard();
+      findAllPatterns();
+      selectTargetPatterns();
+
+      console.log('✅ 棋盘生成完成', { patterns: allPatterns.length, targets: targetPatterns.length });
+
+      renderBoard();
+
+      console.log('✅ 棋盘渲染完成');
+
+      // 清空SVG
+      const svgCanvas = document.getElementById('lineCanvas');
+      if (svgCanvas) {
+        svgCanvas.innerHTML = '';
+      }
+
+      // 开始API轮次记录
+      try {
+        const form = new URLSearchParams();
+        form.set('session_id', sessionId);
+        form.set('round_number', 1);
+        const response = await fetch('/api/session/round/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form
+        });
+        const data = await response.json();
+        currentRoundId = data.round_id;
+        console.log('✅ [连珠大师] 开始游戏', { level: currentLevel, roundId: currentRoundId });
+      } catch (err) {
+        console.error('❌ [连珠大师] 开始轮次失败:', err);
+      }
+
+      // 开始计时
+      clearInterval(timer);
+      timer = setInterval(() => {
+        elapsedTime++;
+        updateUI();
+      }, 1000);
+
+      // 隐藏欢迎屏幕，显示游戏区域
+      const welcomeScreen = document.getElementById('welcomeScreen');
+      if (welcomeScreen) {
+        welcomeScreen.style.display = 'none';
+        console.log('✅ 隐藏欢迎屏幕');
+      }
+
+      const gameContainer = document.querySelector('.game-container');
+      if (gameContainer) {
+        gameContainer.classList.add('active');
+        console.log('✅ 显示游戏区域');
+      }
+
+      updateUI();
+      console.log('✅ 游戏启动完成');
+    }
+
+    // 结束游戏
+    async function endGame() {
+      if (!gameStarted || gameEnded) return;
+
+      gameEnded = true;
+      clearInterval(timer);
+
+      // 计算得分和准确率
+      let accuracy = Math.round(foundPatterns.length / targetPatterns.length * 100);
+      let score = accuracy;
+
+      // 显示结束屏幕
+      document.getElementById('endTime').textContent = elapsedTime;
+      document.getElementById('endFound').textContent = foundPatterns.length;
+      document.getElementById('endTarget').textContent = targetPatterns.length;
+      document.getElementById('endAccuracy').textContent = accuracy;
+      document.getElementById('endScore').textContent = score;
+      document.getElementById('endScreen').style.display = 'flex';
+
+      // 上报API
+      if (currentRoundId) {
+        const metadata = JSON.stringify({
+          level: currentLevel,
+          level_name: LEVELS[currentLevel].name,
+          found: foundPatterns.length,
+          target: targetPatterns.length,
+          elapsed_seconds: elapsedTime
+        });
+
+        try {
+          const form = new URLSearchParams();
+          form.set('round_id', currentRoundId);
+          form.set('duration_seconds', elapsedTime);
+          form.set('success', foundPatterns.length === targetPatterns.length ? '1' : '0');
+          form.set('score', score);
+          form.set('accuracy', accuracy);
+          form.set('metadata', metadata);
+
+          await fetch('/api/session/round/finish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: form
+          });
+          console.log('✅ [连珠大师] 游戏记录完成', { elapsedTime, accuracy, score });
+        } catch (err) {
+          console.error('❌ [连珠大师] 记录失败:', err);
+        }
+      }
+    }
+
+    // 再玩一次
+    function playAgain() {
+      gameStarted = false;
+      document.getElementById('endScreen').style.display = 'none';
+      document.getElementById('welcomeScreen').style.display = 'flex';
+      document.querySelector('.game-container').classList.remove('active');
+    }
+
+    // 显示提示
+    function showHint() {
+      if (!gameStarted || gameEnded) return;
+
+      // 找出还未找到的目标连珠
+      let unfoundTargets = targetPatterns.filter(p => !foundPatterns.includes(p.key));
+
+      if (unfoundTargets.length === 0) {
+        alert('所有连珠都已找到！');
+        return;
+      }
+
+      // 随机选择一个未找到的目标
+      let hint = unfoundTargets[Math.floor(Math.random() * unfoundTargets.length)];
+
+      // 高亮显示提示的连珠（闪烁3次）
+      let cells = hint.cells;
+      let flashCount = 0;
+      let flashInterval = setInterval(() => {
+        cells.forEach(c => {
+          let cell = document.querySelector(`.cell[data-row="${c.row}"][data-col="${c.col}"]`);
+          if (cell) {
+            if (flashCount % 2 === 0) {
+              cell.style.background = '#ffeb3b';
+              cell.style.boxShadow = '0 0 15px #ffeb3b';
+            } else {
+              cell.style.background = 'white';
+              cell.style.boxShadow = 'none';
+            }
+          }
+        });
+
+        flashCount++;
+        if (flashCount >= 6) {
+          clearInterval(flashInterval);
+          // 恢复原样
+          cells.forEach(c => {
+            let cell = document.querySelector(`.cell[data-row="${c.row}"][data-col="${c.col}"]`);
+            if (cell) {
+              cell.style.background = 'white';
+              cell.style.boxShadow = 'none';
+            }
+          });
+        }
+      }, 300);
+
+      console.log('💡 提示目标连珠', { hint, cells });
+    }
+
+    // 页面加载时初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('📄 页面加载完成');
+      updateUI();
+
+      // 全局鼠标松开事件（处理移出棋盘后松开的情况）
+      document.addEventListener('mouseup', () => {
+        if (isSelecting) {
+          isSelecting = false;
+          checkSelection();
+        }
+      });
+    });
+  </script>
+</head>
+<body>
+  <!-- 头部 -->
+  <header>
+    <h1>🔵 连珠大师</h1>
+    <nav>
+      <a href="/">返回首页</a>
+    </nav>
+  </header>
+
+  <!-- 信息栏 -->
+  <div class="info-bar">
+    <div class="info-left">
+      <div class="info-item">
+        <div class="info-label">⏱️ 用时</div>
+        <div class="info-value timer" id="timeValue">0 秒</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">✅ 已找到</div>
+        <div class="info-value" id="foundValue">0</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">🎯 目标</div>
+        <div class="info-value" id="targetValue">0</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">📊 准确率</div>
+        <div class="info-value" id="accuracyValue">0%</div>
+      </div>
+    </div>
+    <div class="info-right">
+      <div class="info-item">
+        <div class="info-label">🎯 难度</div>
+        <div class="info-value" id="currentLevelDisplay">-</div>
+      </div>
+      <div class="controls">
+        <button class="btn btn-start" onclick="showHint()" style="background: #ffc107; color: #333;">💡 提示</button>
+        <form action="/session/finish" method="post" style="display:inline; margin: 0;">
+          <input type="hidden" name="id" value="{{.ID}}" />
+          <button type="submit" class="btn btn-finish">🏁 结束训练</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 游戏区域 -->
+  <div class="game-container">
+    <div id="gameBoard">
+      <div class="board-grid"></div>
+      <svg id="lineCanvas" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <!-- 欢迎屏幕 -->
+  <div class="welcome-screen" id="welcomeScreen">
+    <div class="welcome-content">
+      <h2>🔵 连珠大师</h2>
+      <p>在15×15的棋盘上找出所有4个相连的图案！</p>
+      <div class="rules">
+        <strong>游戏规则：</strong>
+        <ul>
+          <li>找出棋盘上所有4个相同图案的连珠</li>
+          <li>相连方式：横向、竖向、斜向都可以</li>
+          <li><strong style="color: #667eea;">操作方式：</strong>按住鼠标拖动选择4个相邻格子</li>
+          <li style="color: #e24a68; font-weight: 600;">💡 提示：慢速拖动，确保经过每个格子</li>
+          <li>找到所有目标连珠即可通关</li>
+        </ul>
+      </div>
+      <div style="margin: 1.5rem 0;">
+        <label style="font-weight: 600; color: #667eea; font-size: 1.1rem; margin-right: 0.8rem;">选择难度：</label>
+        <select id="levelSelect" style="padding: 0.5rem 1rem; border: 2px solid #667eea; border-radius: 8px; font-size: 1rem; font-weight: 600; background: white; color: #667eea; cursor: pointer;">
+          <option value="1">入门级 (4个)</option>
+          <option value="2">初级 (8个)</option>
+          <option value="3" selected>中级 (10个)</option>
+          <option value="4">高级 (12个)</option>
+          <option value="5">专家级 (14个)</option>
+          <option value="6">大师级 (16个)</option>
+        </select>
+      </div>
+      <p><strong>准备好了吗？选择难度并开始挑战！</strong></p>
+      <button class="btn btn-start" onclick="startGame()" style="padding: 0.7rem 2.5rem; font-size: 1.1rem;">🎮 开始游戏</button>
+    </div>
+  </div>
+
+  <!-- 结束屏幕 -->
+  <div class="end-screen" id="endScreen">
+    <div class="end-content">
+      <h2>🎉 游戏结束！</h2>
+      <p>恭喜你完成了这一关！</p>
+      <div class="stats">
+        <div>⏱️ 用时：<strong id="endTime">0</strong> 秒</div>
+        <div>✅ 找到：<strong id="endFound">0</strong> / <strong id="endTarget">0</strong></div>
+        <div>📊 准确率：<strong id="endAccuracy">0</strong>%</div>
+        <div>💯 得分：<strong id="endScore">0</strong> 分</div>
+      </div>
+      <button class="btn btn-start" onclick="playAgain()" style="padding: 0.7rem 2rem; font-size: 1rem; margin-right: 0.8rem;">🔄 再玩一次</button>
+      <form action="/session/finish" method="post" style="display:inline; margin: 0;">
+        <input type="hidden" name="id" value="{{.ID}}" />
+        <button type="submit" class="btn btn-finish" style="padding: 0.7rem 2rem; font-size: 1rem;">🏁 结束训练</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

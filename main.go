@@ -85,6 +85,7 @@ func main() {
 	mux.HandleFunc("/play/eagle-eye", handlePlayEagleEye)
 	mux.HandleFunc("/play/cup-ball", handlePlayCupBall)
 	mux.HandleFunc("/play/fish-adventure", handlePlayFishAdventure)
+	mux.HandleFunc("/play/pattern-finder", handlePlayPatternFinder)
 
 	// Static files (serve from embedded web/static)
 	var subErr error
@@ -253,6 +254,9 @@ func seedTrainings(db *sql.DB) error {
 		return err
 	}
 	if err := ensure("小鱼历险记", "fish-adventure", "根据规则吞噬正确的鱼，训练规则记忆、抑制控制与认知灵活性。", "专注/认知", 10); err != nil {
+		return err
+	}
+	if err := ensure("连珠大师", "pattern-finder", "在15×15棋盘上找出所有4个相连的黑白图案，训练视觉搜索与模式识别能力。", "观察/专注", 10); err != nil {
 		return err
 	}
 	return nil
@@ -569,6 +573,20 @@ func handlePlayFishAdventure(w http.ResponseWriter, r *http.Request) {
 	var name string
 	_ = db.QueryRow(`SELECT name FROM trainings WHERE id=?`, trainingID).Scan(&name)
 	renderTemplate(w, "play_fish_adventure.html", map[string]any{"ID": id, "TrainingName": name})
+}
+
+// handlePlayPatternFinder 处理连珠大师游戏页面请求
+func handlePlayPatternFinder(w http.ResponseWriter, r *http.Request) {
+	id, _ := parseInt(r.URL.Query().Get("id"))
+	if id == 0 {
+		http.Error(w, "missing id", 400)
+		return
+	}
+	var trainingID int
+	_ = db.QueryRow(`SELECT training_id FROM sessions WHERE id=?`, id).Scan(&trainingID)
+	var name string
+	_ = db.QueryRow(`SELECT name FROM trainings WHERE id=?`, trainingID).Scan(&name)
+	renderTemplate(w, "play_pattern_finder.html", map[string]any{"ID": id, "TrainingName": name})
 }
 
 func handleSessionFinish(w http.ResponseWriter, r *http.Request) {
