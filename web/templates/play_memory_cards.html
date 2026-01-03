@@ -243,6 +243,16 @@
 
       console.log('🔵 [记忆卡片] 开始新轮次', { sessionId, roundNumber, gridSize: `${rows}×${cols}` });
       try {
+        // 上报当前等级（使用网格大小作为等级标识）
+        const levelForm = new URLSearchParams();
+        levelForm.set('session_id', sessionId);
+        levelForm.set('level', `${rows}x${cols}`);
+        await fetch('/api/session/update-level', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: levelForm
+        });
+
         const form = new URLSearchParams();
         form.set('session_id', sessionId);
         form.set('round_number', roundNumber);

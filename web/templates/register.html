@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>注册 - Leo专注力训练</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .register-container {
+      background: white;
+      padding: 2.5rem;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      width: 100%;
+      max-width: 400px;
+    }
+    .register-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .register-header h1 {
+      color: #667eea;
+      margin: 0 0 0.5rem 0;
+      font-size: 1.8rem;
+    }
+    .register-header p {
+      color: #666;
+      margin: 0;
+      font-size: 0.95rem;
+    }
+    .form-group {
+      margin-bottom: 1.2rem;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 0.4rem;
+      color: #333;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+      box-sizing: border-box;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .form-group .hint {
+      font-size: 0.8rem;
+      color: #999;
+      margin-top: 0.3rem;
+    }
+    .error-message {
+      background: #fee;
+      color: #c00;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+    .btn-register {
+      width: 100%;
+      padding: 0.85rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-register:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    .login-link {
+      text-align: center;
+      margin-top: 1.5rem;
+      color: #666;
+      font-size: 0.9rem;
+    }
+    .login-link a {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .login-link a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="register-container">
+    <div class="register-header">
+      <h1>创建账号</h1>
+      <p>加入Leo专注力训练</p>
+    </div>
+
+    {{if .Error}}
+    <div class="error-message">{{.Error}}</div>
+    {{end}}
+
+    <form method="POST" action="/register">
+      <div class="form-group">
+        <label for="username">用户名</label>
+        <input type="text" id="username" name="username" placeholder="请输入用户名" required autofocus />
+        <div class="hint">至少3个字符，用于登录</div>
+      </div>
+      <div class="form-group">
+        <label for="nickname">昵称（可选）</label>
+        <input type="text" id="nickname" name="nickname" placeholder="显示名称，留空则使用用户名" />
+      </div>
+      <div class="form-group">
+        <label for="password">密码</label>
+        <input type="password" id="password" name="password" placeholder="请输入密码" required />
+        <div class="hint">至少4个字符</div>
+      </div>
+      <div class="form-group">
+        <label for="confirm_password">确认密码</label>
+        <input type="password" id="confirm_password" name="confirm_password" placeholder="请再次输入密码" required />
+      </div>
+      <button type="submit" class="btn-register">注 册</button>
+    </form>
+
+    <div class="login-link">
+      已有账号？<a href="/login">立即登录</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -4,6 +4,30 @@
   <meta charset="utf-8" />
   <title>专注力训练系统</title>
   <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      color: white;
+    }
+    .user-info .nickname {
+      font-weight: 600;
+    }
+    .user-info .logout-btn {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: none;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      text-decoration: none;
+    }
+    .user-info .logout-btn:hover {
+      background: rgba(255,255,255,0.3);
+    }
+  </style>
 </head>
 <body class="kids-bg">
   <header class="kids-header">
@@ -11,7 +35,13 @@
       <h1>小小超能力训练营</h1>
       <nav>
         <a href="/trainings">训练项目</a>
-        <a href="/reports/daily/v2">📊 每日报表</a>
+        <a href="/reports/daily/v2">每日报表</a>
+        {{if .User}}
+        <span class="user-info">
+          <span class="nickname">{{.User.Nickname}}</span>
+          <a href="/logout" class="logout-btn">退出</a>
+        </span>
+        {{end}}
       </nav>
     </div>
   </header>
@@ -19,10 +49,10 @@
   <section class="banner">
     <div class="mascot" aria-label="cute mascot"></div>
     <div class="banner-text">
-      <h2>今天一起练习专注力吧！</h2>
+      <h2>{{if .User}}{{.User.Nickname}}，{{end}}今天一起练习专注力吧！</h2>
       <p>日期：<span class="pill">{{.Today}}</span></p>
       <p>今日累计：<span class="pill accent">{{.TotalMin}} 分钟</span></p>
-      <p class="sub">选择一个喜欢的项目，开始成为“专注小超人”～</p>
+      <p class="sub">选择一个喜欢的项目，开始成为"专注小超人"～</p>
     </div>
   </section>
 

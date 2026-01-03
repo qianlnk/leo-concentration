@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -13,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -29,6 +32,90 @@ var (
 	tpl       *template.Template
 	staticSub fs.FS
 )
+
+// 用户会话管理
+type UserSession struct {
+	UserID   int
+	Username string
+	Nickname string
+	ExpireAt time.Time
+}
+
+var (
+	sessionStore = make(map[string]*UserSession)
+	sessionMutex sync.RWMutex
+)
+
+// generateSessionID 生成随机会话ID
+func generateSessionID() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// getSession 从请求中获取用户会话
+func getSession(r *http.Request) *UserSession {
+	cookie, err := r.Cookie("session_id")
+	if err != nil {
+		return nil
+	}
+	sessionMutex.RLock()
+	defer sessionMutex.RUnlock()
+	session, ok := sessionStore[cookie.Value]
+	if !ok || session.ExpireAt.Before(time.Now()) {
+		return nil
+	}
+	return session
+}
+
+// setSession 设置用户会话
+func setSession(w http.ResponseWriter, userID int, username, nickname string) {
+	sessionID := generateSessionID()
+	sessionMutex.Lock()
+	sessionStore[sessionID] = &UserSession{
+		UserID:   userID,
+		Username: username,
+		Nickname: nickname,
+		ExpireAt: time.Now().Add(7 * 24 * time.Hour), // 7天过期
+	}
+	sessionMutex.Unlock()
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_id",
+		Value:    sessionID,
+		Path:     "/",
+		MaxAge:   7 * 24 * 60 * 60, // 7天
+		HttpOnly: true,
+	})
+}
+
+// clearSession 清除用户会话
+func clearSession(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("session_id")
+	if err == nil {
+		sessionMutex.Lock()
+		delete(sessionStore, cookie.Value)
+		sessionMutex.Unlock()
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:   "session_id",
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1,
+	})
+}
+
+// requireLogin 检查登录状态的中间件
+func requireLogin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		session := getSession(r)
+		if session == nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		next(w, r)
+	}
+}
 
 func main() {
 	// Ensure data directory
@@ -60,32 +147,39 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/", handleIndex)
-	mux.HandleFunc("/trainings", handleTrainings)
-	mux.HandleFunc("/training", handleTraining)
-	mux.HandleFunc("/session/start", handleSessionStart)
-	mux.HandleFunc("/session", handleSession)
-	mux.HandleFunc("/session/finish", handleSessionFinish)
-	mux.HandleFunc("/reports/daily", handleReportsDaily)
-	mux.HandleFunc("/reports/daily/v2", handleReportsDailyV2)
-	mux.HandleFunc("/training/stats/", handleTrainingStats)
+	// 登录相关路由（无需登录）
+	mux.HandleFunc("/login", handleLogin)
+	mux.HandleFunc("/register", handleRegister)
+	mux.HandleFunc("/logout", handleLogout)
+
+	// 需要登录的路由
+	mux.HandleFunc("/", requireLogin(handleIndex))
+	mux.HandleFunc("/trainings", requireLogin(handleTrainings))
+	mux.HandleFunc("/training", requireLogin(handleTraining))
+	mux.HandleFunc("/session/start", requireLogin(handleSessionStart))
+	mux.HandleFunc("/session", requireLogin(handleSession))
+	mux.HandleFunc("/session/finish", requireLogin(handleSessionFinish))
+	mux.HandleFunc("/reports/daily", requireLogin(handleReportsDaily))
+	mux.HandleFunc("/reports/daily/v2", requireLogin(handleReportsDailyV2))
+	mux.HandleFunc("/training/stats/", requireLogin(handleTrainingStats))
 	mux.HandleFunc("/test/cup-ball", func(w http.ResponseWriter, r *http.Request) {
 		renderTemplate(w, "test_cup_ball.html", nil)
 	})
-	mux.HandleFunc("/api/session/round/start", handleRoundStart)
-	mux.HandleFunc("/api/session/round/finish", handleRoundFinish)
-	mux.HandleFunc("/api/stats/daily", handleStatsDaily)
-	mux.HandleFunc("/api/stats/training/", handleStatsTraining)
-	mux.HandleFunc("/play/balance-hero", handlePlayBalance)
-	mux.HandleFunc("/play/number-trace", handlePlayNumberTrace)
-	mux.HandleFunc("/play/memory-cards", handlePlayMemory)
-	mux.HandleFunc("/play/poem-trace", handlePlayPoemTrace)
-	mux.HandleFunc("/play/warmup-jumping", handlePlayWarmup)
-	mux.HandleFunc("/play/color-match", handlePlayColorMatch)
-	mux.HandleFunc("/play/eagle-eye", handlePlayEagleEye)
-	mux.HandleFunc("/play/cup-ball", handlePlayCupBall)
-	mux.HandleFunc("/play/fish-adventure", handlePlayFishAdventure)
-	mux.HandleFunc("/play/pattern-finder", handlePlayPatternFinder)
+	mux.HandleFunc("/api/session/round/start", requireLogin(handleRoundStart))
+	mux.HandleFunc("/api/session/round/finish", requireLogin(handleRoundFinish))
+	mux.HandleFunc("/api/session/update-level", requireLogin(handleSessionUpdateLevel))
+	mux.HandleFunc("/api/stats/daily", requireLogin(handleStatsDaily))
+	mux.HandleFunc("/api/stats/training/", requireLogin(handleStatsTrainingRouter))
+	mux.HandleFunc("/play/balance-hero", requireLogin(handlePlayBalance))
+	mux.HandleFunc("/play/number-trace", requireLogin(handlePlayNumberTrace))
+	mux.HandleFunc("/play/memory-cards", requireLogin(handlePlayMemory))
+	mux.HandleFunc("/play/poem-trace", requireLogin(handlePlayPoemTrace))
+	mux.HandleFunc("/play/warmup-jumping", requireLogin(handlePlayWarmup))
+	mux.HandleFunc("/play/color-match", requireLogin(handlePlayColorMatch))
+	mux.HandleFunc("/play/eagle-eye", requireLogin(handlePlayEagleEye))
+	mux.HandleFunc("/play/cup-ball", requireLogin(handlePlayCupBall))
+	mux.HandleFunc("/play/fish-adventure", requireLogin(handlePlayFishAdventure))
+	mux.HandleFunc("/play/pattern-finder", requireLogin(handlePlayPatternFinder))
 
 	// Static files (serve from embedded web/static)
 	var subErr error
@@ -109,8 +203,146 @@ func logRequest(h http.Handler) http.Handler {
 	})
 }
 
+// handleLogin 处理登录页面和登录请求
+func handleLogin(w http.ResponseWriter, r *http.Request) {
+	// 如果已登录，跳转到首页
+	if session := getSession(r); session != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		renderTemplate(w, "login.html", nil)
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		if err := r.ParseForm(); err != nil {
+			renderTemplate(w, "login.html", map[string]any{"Error": "表单解析错误"})
+			return
+		}
+
+		username := strings.TrimSpace(r.FormValue("username"))
+		password := r.FormValue("password")
+
+		if username == "" || password == "" {
+			renderTemplate(w, "login.html", map[string]any{"Error": "用户名和密码不能为空"})
+			return
+		}
+
+		// 查询用户
+		var userID int
+		var storedPassword, nickname string
+		err := db.QueryRow(`SELECT id, password, COALESCE(nickname, username) FROM users WHERE username = ?`, username).Scan(&userID, &storedPassword, &nickname)
+		if err != nil {
+			renderTemplate(w, "login.html", map[string]any{"Error": "用户名或密码错误"})
+			return
+		}
+
+		// 简单密码验证（生产环境应使用bcrypt等加密）
+		if password != storedPassword {
+			renderTemplate(w, "login.html", map[string]any{"Error": "用户名或密码错误"})
+			return
+		}
+
+		// 设置会话
+		setSession(w, userID, username, nickname)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
+// handleRegister 处理注册页面和注册请求
+func handleRegister(w http.ResponseWriter, r *http.Request) {
+	// 如果已登录，跳转到首页
+	if session := getSession(r); session != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		renderTemplate(w, "register.html", nil)
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		if err := r.ParseForm(); err != nil {
+			renderTemplate(w, "register.html", map[string]any{"Error": "表单解析错误"})
+			return
+		}
+
+		username := strings.TrimSpace(r.FormValue("username"))
+		password := r.FormValue("password")
+		confirmPassword := r.FormValue("confirm_password")
+		nickname := strings.TrimSpace(r.FormValue("nickname"))
+
+		if username == "" || password == "" {
+			renderTemplate(w, "register.html", map[string]any{"Error": "用户名和密码不能为空"})
+			return
+		}
+
+		if len(username) < 3 {
+			renderTemplate(w, "register.html", map[string]any{"Error": "用户名至少3个字符"})
+			return
+		}
+
+		if len(password) < 4 {
+			renderTemplate(w, "register.html", map[string]any{"Error": "密码至少4个字符"})
+			return
+		}
+
+		if password != confirmPassword {
+			renderTemplate(w, "register.html", map[string]any{"Error": "两次密码输入不一致"})
+			return
+		}
+
+		if nickname == "" {
+			nickname = username
+		}
+
+		// 检查用户名是否已存在
+		var exists int
+		db.QueryRow(`SELECT COUNT(1) FROM users WHERE username = ?`, username).Scan(&exists)
+		if exists > 0 {
+			renderTemplate(w, "register.html", map[string]any{"Error": "用户名已存在"})
+			return
+		}
+
+		// 创建用户（简单存储密码，生产环境应使用bcrypt）
+		result, err := db.Exec(`INSERT INTO users (username, password, nickname) VALUES (?, ?, ?)`, username, password, nickname)
+		if err != nil {
+			renderTemplate(w, "register.html", map[string]any{"Error": "注册失败，请重试"})
+			return
+		}
+
+		userID, _ := result.LastInsertId()
+
+		// 自动登录
+		setSession(w, int(userID), username, nickname)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
+// handleLogout 处理登出请求
+func handleLogout(w http.ResponseWriter, r *http.Request) {
+	clearSession(w, r)
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
 func migrate(db *sql.DB) error {
 	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            nickname TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );`,
 		`CREATE TABLE IF NOT EXISTS trainings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -122,6 +354,7 @@ func migrate(db *sql.DB) error {
         );`,
 		`CREATE TABLE IF NOT EXISTS sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             training_id INTEGER NOT NULL,
             started_at DATETIME NOT NULL,
             ended_at DATETIME,
@@ -133,6 +366,7 @@ func migrate(db *sql.DB) error {
             status TEXT DEFAULT 'in_progress',
             completed_rounds INTEGER DEFAULT 0,
             total_rounds INTEGER DEFAULT 0,
+            FOREIGN KEY(user_id) REFERENCES users(id),
             FOREIGN KEY(training_id) REFERENCES trainings(id)
         );`,
 		`CREATE TABLE IF NOT EXISTS session_rounds (
@@ -203,6 +437,7 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	addColumnIfNotExists("sessions", "user_id", "INTEGER")
 	addColumnIfNotExists("sessions", "level", "TEXT")
 	addColumnIfNotExists("sessions", "status", "TEXT DEFAULT 'in_progress'")
 	addColumnIfNotExists("sessions", "completed_rounds", "INTEGER DEFAULT 0")
@@ -271,6 +506,14 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+
+	// 获取当前用户
+	userSession := getSession(r)
+	if userSession == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
 	type Training struct {
 		ID             int
 		Name, Category string
@@ -282,7 +525,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	// 获取今天的日期
 	today := time.Now().Format("2006-01-02")
 
-	// 使用LEFT JOIN查询所有训练项目及其今天的统计数据
+	// 使用LEFT JOIN查询所有训练项目及其今天的统计数据（只查询当前用户的数据）
 	query := `
 		SELECT
 			t.id,
@@ -292,14 +535,14 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 			COALESCE(SUM(sr.duration_seconds), 0) as today_seconds,
 			COALESCE(COUNT(sr.id), 0) as today_rounds
 		FROM trainings t
-		LEFT JOIN sessions s ON t.id = s.training_id AND substr(s.started_at, 1, 10) = ?
+		LEFT JOIN sessions s ON t.id = s.training_id AND substr(s.started_at, 1, 10) = ? AND s.user_id = ?
 		LEFT JOIN session_rounds sr ON s.id = sr.session_id
 		WHERE t.active = 1
 		GROUP BY t.id, t.name, t.category, t.suggested_minutes
 		ORDER BY t.id
 	`
 
-	rows, err := db.Query(query, today)
+	rows, err := db.Query(query, today, userSession.UserID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -329,6 +572,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		"TotalSecs": totalSec,
 		"TotalMin":  totalSec / 60,
 		"Today":     today,
+		"User":      userSession,
 	})
 }
 
@@ -413,8 +657,16 @@ func handleSessionStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing training_id", 400)
 		return
 	}
+
+	// 获取当前用户ID
+	session := getSession(r)
+	if session == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
 	now := time.Now()
-	res, err := db.Exec(`INSERT INTO sessions(training_id, started_at) VALUES(?,?)`, tid, now)
+	res, err := db.Exec(`INSERT INTO sessions(user_id, training_id, started_at) VALUES(?,?,?)`, session.UserID, tid, now)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -673,6 +925,38 @@ func handleTrainingStats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleSessionUpdateLevel 更新会话的等级信息
+func handleSessionUpdateLevel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+
+	sessionID, _ := parseInt(r.FormValue("session_id"))
+	level := strings.TrimSpace(r.FormValue("level"))
+	if sessionID == 0 {
+		http.Error(w, "missing session_id", 400)
+		return
+	}
+	if level == "" {
+		http.Error(w, "missing level", 400)
+		return
+	}
+
+	_, err := db.Exec(`UPDATE sessions SET level = ? WHERE id = ?`, level, sessionID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
+}
+
 // handleRoundStart 开始新一轮训练
 func handleRoundStart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -757,12 +1041,19 @@ func handleRoundFinish(w http.ResponseWriter, r *http.Request) {
 
 // handleStatsDaily 获取每日统计数据
 func handleStatsDaily(w http.ResponseWriter, r *http.Request) {
+	// 获取当前用户
+	userSession := getSession(r)
+	if userSession == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	date := r.URL.Query().Get("date")
 	if date == "" {
 		date = time.Now().Format("2006-01-02")
 	}
 
-	// 获取当日按训练项目聚合的统计数据（从session_rounds表）
+	// 获取当日按训练项目聚合的统计数据（从session_rounds表，只查询当前用户）
 	type TrainingStat struct {
 		TrainingID   int     `json:"training_id"`
 		TrainingName string  `json:"name"`
@@ -785,10 +1076,10 @@ func handleStatsDaily(w http.ResponseWriter, r *http.Request) {
 		FROM trainings t
 		JOIN sessions s ON t.id = s.training_id
 		JOIN session_rounds sr ON s.id = sr.session_id
-		WHERE substr(s.started_at, 1, 10) = ?
+		WHERE substr(s.started_at, 1, 10) = ? AND s.user_id = ?
 		GROUP BY t.id, t.name
 		ORDER BY t.name
-	`, date)
+	`, date, userSession.UserID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -831,8 +1122,24 @@ func handleStatsDaily(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonData)
 }
 
+// handleStatsTrainingRouter 路由分发：根据路径决定调用哪个处理函数
+func handleStatsTrainingRouter(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, "/levels") {
+		handleStatsTrainingLevels(w, r)
+	} else {
+		handleStatsTraining(w, r)
+	}
+}
+
 // handleStatsTraining 获取训练项目统计
 func handleStatsTraining(w http.ResponseWriter, r *http.Request) {
+	// 获取当前用户
+	userSession := getSession(r)
+	if userSession == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	// 从URL路径提取training_id
 	path := r.URL.Path
 	idStr := strings.TrimPrefix(path, "/api/stats/training/")
@@ -870,12 +1177,12 @@ func handleStatsTraining(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := `
-		SELECT sr.round_number, sr.started_at, sr.duration_seconds, sr.success, sr.score, sr.accuracy, sr.metadata
+		SELECT sr.round_number, sr.started_at, sr.duration_seconds, sr.success, sr.score, sr.accuracy, sr.metadata, COALESCE(s.level, '')
 		FROM session_rounds sr
 		JOIN sessions s ON sr.session_id = s.id
-		WHERE s.training_id = ? AND substr(sr.started_at, 1, 10) >= ?
+		WHERE s.training_id = ? AND substr(sr.started_at, 1, 10) >= ? AND s.user_id = ?
 	`
-	args := []any{trainingID, startDate}
+	args := []any{trainingID, startDate, userSession.UserID}
 
 	// 只有明确指定level时才过滤，空字符串表示查询全部
 	if level != "" && level != "all" {
@@ -900,6 +1207,7 @@ func handleStatsTraining(w http.ResponseWriter, r *http.Request) {
 		Score       int     `json:"score"`
 		Accuracy    float64 `json:"accuracy"`
 		Metadata    string  `json:"metadata"`
+		Level       string  `json:"level"`
 	}
 
 	var rounds []RoundData
@@ -910,7 +1218,7 @@ func handleStatsTraining(w http.ResponseWriter, r *http.Request) {
 		var score sql.NullInt64
 		var accuracy sql.NullFloat64
 		var metadata sql.NullString
-		if err := rows.Scan(&r.RoundNumber, &r.StartedAt, &duration, &success, &score, &accuracy, &metadata); err != nil {
+		if err := rows.Scan(&r.RoundNumber, &r.StartedAt, &duration, &success, &score, &accuracy, &metadata, &r.Level); err != nil {
 			log.Printf("扫描行出错: %v", err)
 			continue
 		}
@@ -941,6 +1249,57 @@ func handleStatsTraining(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonData, _ := json.Marshal(resp)
+	w.Write(jsonData)
+}
+
+// handleStatsTrainingLevels 获取训练项目的所有等级列表
+func handleStatsTrainingLevels(w http.ResponseWriter, r *http.Request) {
+	// 获取当前用户
+	userSession := getSession(r)
+	if userSession == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// 从URL路径提取training_id
+	path := r.URL.Path
+	idStr := strings.TrimPrefix(path, "/api/stats/training/")
+	idStr = strings.TrimSuffix(idStr, "/levels")
+	trainingID, _ := parseInt(idStr)
+	if trainingID == 0 {
+		http.Error(w, "missing training_id", 400)
+		return
+	}
+
+	// 获取该训练项目的所有不同等级（只查询当前用户）
+	rows, err := db.Query(`
+		SELECT DISTINCT COALESCE(level, '') as level
+		FROM sessions
+		WHERE training_id = ? AND user_id = ? AND level IS NOT NULL AND level != ''
+		ORDER BY level
+	`, trainingID, userSession.UserID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	defer rows.Close()
+
+	var levels []string
+	for rows.Next() {
+		var level string
+		if err := rows.Scan(&level); err != nil {
+			continue
+		}
+		if level != "" {
+			levels = append(levels, level)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	jsonData, _ := json.Marshal(map[string]any{
+		"training_id": trainingID,
+		"levels":      levels,
+	})
 	w.Write(jsonData)
 }
 

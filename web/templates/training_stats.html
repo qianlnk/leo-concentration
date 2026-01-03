@@ -123,6 +123,12 @@
 
     <div class="filters">
       <div class="filter-group">
+        <label>难度等级：</label>
+        <select id="levelFilter" onchange="loadData()">
+          <option value="all">全部等级</option>
+        </select>
+      </div>
+      <div class="filter-group">
         <label>时间范围：</label>
         <select id="daysFilter" onchange="loadData()">
           <option value="today">今天</option>
@@ -168,13 +174,37 @@
 
     // 页面加载时初始化
     window.addEventListener('DOMContentLoaded', () => {
+      loadLevels();
       loadData();
     });
 
+    // 加载该训练的所有等级
+    async function loadLevels() {
+      try {
+        const response = await fetch(`/api/stats/training/${trainingId}/levels`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const select = document.getElementById('levelFilter');
+
+        if (data.levels && data.levels.length > 0) {
+          data.levels.forEach(level => {
+            const option = document.createElement('option');
+            option.value = level;
+            option.textContent = `等级 ${level}`;
+            select.appendChild(option);
+          });
+        }
+      } catch (err) {
+        console.error('加载等级列表失败:', err);
+      }
+    }
+
     async function loadData() {
       const timeValue = document.getElementById('daysFilter').value;
+      const levelValue = document.getElementById('levelFilter').value;
 
-      console.log('🔵 加载训练统计数据', { trainingId, timeValue });
+      console.log('🔵 加载训练统计数据', { trainingId, timeValue, levelValue });
 
       try {
         let url;
@@ -184,6 +214,11 @@
         } else {
           // 最近N天
           url = `/api/stats/training/${trainingId}?days=${timeValue}`;
+        }
+
+        // 添加等级过滤
+        if (levelValue && levelValue !== 'all') {
+          url += `&level=${encodeURIComponent(levelValue)}`;
         }
 
         console.log('🔵 请求URL:', url);
@@ -250,16 +285,88 @@
     }
 
     function updateCharts(rounds) {
-      // 准备数据
-      const labels = rounds.map((r, i) => `第${i + 1}轮`);
-      const durations = rounds.map(r => r.duration);
-      const accuracies = rounds.map(r => r.accuracy);
-      const scores = rounds.map(r => r.score);
+      // 按等级分组数据
+      const levelValue = document.getElementById('levelFilter').value;
+      const levelGroups = {};
+
+      // 如果选择了"全部等级"，则按等级分组显示不同颜色
+      if (levelValue === 'all') {
+        rounds.forEach(r => {
+          const level = r.level || '未知';
+          if (!levelGroups[level]) {
+            levelGroups[level] = [];
+          }
+          levelGroups[level].push(r);
+        });
+      } else {
+        // 选择了特定等级，只显示一条线
+        levelGroups[levelValue] = rounds;
+      }
+
+      // 颜色配置
+      const colors = [
+        { border: '#667eea', bg: 'rgba(102, 126, 234, 0.1)' },
+        { border: '#f5576c', bg: 'rgba(245, 87, 108, 0.1)' },
+        { border: '#43e97b', bg: 'rgba(67, 233, 123, 0.1)' },
+        { border: '#4facfe', bg: 'rgba(79, 172, 254, 0.1)' },
+        { border: '#fa709a', bg: 'rgba(250, 112, 154, 0.1)' },
+        { border: '#f093fb', bg: 'rgba(240, 147, 251, 0.1)' },
+        { border: '#00f2fe', bg: 'rgba(0, 242, 254, 0.1)' },
+        { border: '#fee140', bg: 'rgba(254, 225, 64, 0.1)' },
+      ];
 
       // 销毁旧图表
       if (timeChart) timeChart.destroy();
       if (accuracyChart) accuracyChart.destroy();
       if (scoreChart) scoreChart.destroy();
+
+      // 创建数据集
+      const levels = Object.keys(levelGroups);
+      const timeDatasets = [];
+      const accuracyDatasets = [];
+      const scoreDatasets = [];
+
+      levels.forEach((level, index) => {
+        const levelRounds = levelGroups[level];
+        const color = colors[index % colors.length];
+        const labels = levelRounds.map((r, i) => `第${i + 1}轮`);
+
+        timeDatasets.push({
+          label: `等级 ${level} - 完成时间（秒）`,
+          data: levelRounds.map(r => r.duration),
+          borderColor: color.border,
+          backgroundColor: color.bg,
+          borderWidth: 3,
+          tension: 0.4,
+          fill: false,
+          pointRadius: 5,
+          pointHoverRadius: 7
+        });
+
+        accuracyDatasets.push({
+          label: `等级 ${level} - 准确率（%）`,
+          data: levelRounds.map(r => r.accuracy),
+          borderColor: color.border,
+          backgroundColor: color.bg,
+          borderWidth: 3,
+          tension: 0.4,
+          fill: false,
+          pointRadius: 5,
+          pointHoverRadius: 7
+        });
+
+        scoreDatasets.push({
+          label: `等级 ${level}`,
+          data: levelRounds.map(r => r.score),
+          backgroundColor: levelRounds.map(r => r.success ? color.border : '#ccc'),
+          borderColor: color.border,
+          borderWidth: 2
+        });
+      });
+
+      // 计算最大轮次数用于 x 轴
+      const maxRounds = Math.max(...levels.map(l => levelGroups[l].length));
+      const labels = Array.from({ length: maxRounds }, (_, i) => `第${i + 1}轮`);
 
       // 创建完成时间图表
       const timeCtx = document.getElementById('timeChart').getContext('2d');
@@ -267,17 +374,7 @@
         type: 'line',
         data: {
           labels: labels,
-          datasets: [{
-            label: '完成时间（秒）',
-            data: durations,
-            borderColor: '#667eea',
-            backgroundColor: 'rgba(102, 126, 234, 0.1)',
-            borderWidth: 3,
-            tension: 0.4,
-            fill: true,
-            pointRadius: 5,
-            pointHoverRadius: 7
-          }]
+          datasets: timeDatasets
         },
         options: {
           responsive: true,
@@ -301,17 +398,7 @@
         type: 'line',
         data: {
           labels: labels,
-          datasets: [{
-            label: '准确率（%）',
-            data: accuracies,
-            borderColor: '#43e97b',
-            backgroundColor: 'rgba(67, 233, 123, 0.1)',
-            borderWidth: 3,
-            tension: 0.4,
-            fill: true,
-            pointRadius: 5,
-            pointHoverRadius: 7
-          }]
+          datasets: accuracyDatasets
         },
         options: {
           responsive: true,
@@ -336,13 +423,7 @@
         type: 'bar',
         data: {
           labels: labels,
-          datasets: [{
-            label: '得分',
-            data: scores,
-            backgroundColor: rounds.map(r => r.success ? 'rgba(67, 233, 123, 0.6)' : 'rgba(245, 87, 108, 0.6)'),
-            borderColor: rounds.map(r => r.success ? '#43e97b' : '#f5576c'),
-            borderWidth: 2
-          }]
+          datasets: scoreDatasets
         },
         options: {
           responsive: true,
@@ -364,11 +445,15 @@
 
     function showNoData() {
       document.getElementById('summaryCards').innerHTML = '<div class="no-data">暂无训练数据，快去完成训练吧！</div>';
-      if (timeChart) timeChart.destroy();
-      if (accuracyChart) accuracyChart.destroy();
-      if (scoreChart) scoreChart.destroy();
-      document.querySelectorAll('.chart-container').forEach(el => {
-        el.innerHTML = '<div class="no-data">暂无数据</div>';
+      if (timeChart) { timeChart.destroy(); timeChart = null; }
+      if (accuracyChart) { accuracyChart.destroy(); accuracyChart = null; }
+      if (scoreChart) { scoreChart.destroy(); scoreChart = null; }
+      // 重新创建 canvas 元素并显示暂无数据提示
+      const containers = document.querySelectorAll('.chart-container');
+      const canvasIds = ['timeChart', 'accuracyChart', 'scoreChart'];
+      containers.forEach((el, index) => {
+        el.innerHTML = `<canvas id="${canvasIds[index]}"></canvas><div class="no-data" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);">暂无数据</div>`;
+        el.style.position = 'relative';
       });
     }
 

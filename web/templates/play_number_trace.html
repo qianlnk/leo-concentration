@@ -144,6 +144,16 @@
       roundStartTime = Date.now();
       console.log('🔵 [数字迷踪] 开始新轮次', { sessionId, roundNumber, grid: `${grid}x${grid}` });
       try {
+        // 上报当前等级（使用网格大小作为等级标识）
+        const levelForm = new URLSearchParams();
+        levelForm.set('session_id', sessionId);
+        levelForm.set('level', `${grid}x${grid}`);
+        await fetch('/api/session/update-level', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: levelForm
+        });
+
         const form = new URLSearchParams();
         form.set('session_id', sessionId);
         form.set('round_number', roundNumber);

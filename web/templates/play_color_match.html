@@ -290,6 +290,16 @@
 
       console.log('🔵 [颜色对对碰] 开始新轮次', { sessionId, roundNumber, gridSize: `${gridSize}x${gridSize}` });
       try {
+        // 上报当前等级（使用网格大小作为等级标识）
+        const levelForm = new URLSearchParams();
+        levelForm.set('session_id', sessionId);
+        levelForm.set('level', `${gridSize}x${gridSize}`);
+        await fetch('/api/session/update-level', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: levelForm
+        });
+
         const form = new URLSearchParams();
         form.set('session_id', sessionId);
         form.set('round_number', roundNumber);

@@ -967,6 +967,16 @@
 
       console.log('🔵 [小鱼历险记] 开始新轮次', { sessionId, roundNumber, level });
       try {
+        // 上报当前等级
+        const levelForm = new URLSearchParams();
+        levelForm.set('session_id', sessionId);
+        levelForm.set('level', String(level));
+        await fetch('/api/session/update-level', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: levelForm
+        });
+
         const form = new URLSearchParams();
         form.set('session_id', sessionId);
         form.set('round_number', roundNumber);

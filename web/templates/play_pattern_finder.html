@@ -322,10 +322,11 @@
     let targetPatterns = []; // 本关需要找到的连珠
     let foundPatterns = []; // 已找到的连珠
 
-    // 鼠标选择
+    // 鼠标选择 - 拖动模式，智能纠正方向
     let isSelecting = false;
     let selectedCells = [];
     let selectionLine = null; // SVG线条元素
+    let startCell = null; // 起始格子
 
     // 初始化UI
     function updateUI() {
@@ -644,6 +645,7 @@
           cell.dataset.col = col;
           cell.textContent = boardPatterns[row][col];
 
+          // 拖动选择事件
           cell.addEventListener('mousedown', onCellMouseDown);
           cell.addEventListener('mouseenter', onCellMouseEnter);
           cell.addEventListener('mouseup', onCellMouseUp);
@@ -743,16 +745,50 @@
 
       // 开始新选择
       isSelecting = true;
-      selectedCells = [];
-      selectedCells.push({ row, col });
+      startCell = { row, col };
+      clearSelectionUI();
+      selectedCells = [startCell];
       e.currentTarget.classList.add('selected');
       drawSelectionLine();
       console.log('🖱️ 开始选择', { row, col, pattern: boardPatterns[row][col] });
     }
 
-    // 鼠标移动经过（智能纠错模式）
+    // 根据起点和终点，计算直线上的所有格子
+    function getLineCells(start, end) {
+      let dr = end.row - start.row;
+      let dc = end.col - start.col;
+
+      // 同一个格子
+      if (dr === 0 && dc === 0) {
+        return [start];
+      }
+
+      let absDr = Math.abs(dr);
+      let absDc = Math.abs(dc);
+
+      // 检查是否是有效的直线（横、竖、斜45度）
+      if (!(absDr === absDc || absDr === 0 || absDc === 0)) {
+        return null; // 不是有效直线
+      }
+
+      let steps = Math.max(absDr, absDc);
+      let stepRow = dr === 0 ? 0 : (dr > 0 ? 1 : -1);
+      let stepCol = dc === 0 ? 0 : (dc > 0 ? 1 : -1);
+
+      let cells = [];
+      for (let i = 0; i <= steps; i++) {
+        cells.push({
+          row: start.row + i * stepRow,
+          col: start.col + i * stepCol
+        });
+      }
+
+      return cells;
+    }
+
+    // 鼠标移动到格子上 - 以当前格子为终点，调整直线
     function onCellMouseEnter(e) {
-      if (!isSelecting) return;
+      if (!isSelecting || !startCell) return;
 
       let row = parseInt(e.currentTarget.dataset.row);
       let col = parseInt(e.currentTarget.dataset.col);
@@ -762,87 +798,124 @@
         return;
       }
 
-      // 检查是否已选择
-      if (selectedCells.some(c => c.row === row && c.col === col)) {
+      let currentCell = { row, col };
+
+      // 计算从起点到当前格子的直线
+      let lineCells = getLineCells(startCell, currentCell);
+
+      if (lineCells === null) {
+        // 不是有效直线，需要调整
+        // 策略：找到从起点出发、经过或最接近当前格子的有效直线方向
+        lineCells = adjustToLine(startCell, currentCell);
+      }
+
+      // 限制最多4个格子
+      if (lineCells.length > 4) {
+        lineCells = lineCells.slice(0, 4);
+      }
+
+      // 检查路径上是否有已找到的格子
+      let validCells = [];
+      for (let c of lineCells) {
+        let cell = document.querySelector(`.cell[data-row="${c.row}"][data-col="${c.col}"]`);
+        if (cell && cell.classList.contains('found')) {
+          break;
+        }
+        validCells.push(c);
+      }
+
+      // 如果没有变化，不更新
+      if (validCells.length === selectedCells.length &&
+          validCells.every((c, i) => c.row === selectedCells[i].row && c.col === selectedCells[i].col)) {
         return;
       }
 
-      // 如果已经有4个，不再添加
-      if (selectedCells.length >= 4) {
-        return;
-      }
+      // 更新选择
+      clearSelectionUI();
+      selectedCells = validCells;
 
-      if (selectedCells.length > 0) {
-        let last = selectedCells[selectedCells.length - 1];
-        let dr = row - last.row;
-        let dc = col - last.col;
+      selectedCells.forEach(c => {
+        let cell = document.querySelector(`.cell[data-row="${c.row}"][data-col="${c.col}"]`);
+        if (cell) cell.classList.add('selected');
+      });
 
-        // 检查是否相邻（8个方向之一）
-        if (Math.abs(dr) > 1 || Math.abs(dc) > 1 || (dr === 0 && dc === 0)) {
-          return; // 不相邻，忽略
-        }
-
-        // 如果已有2个或更多格子，检查方向并自动纠错
-        if (selectedCells.length >= 2) {
-          let first = selectedCells[0];
-          let second = selectedCells[1];
-
-          // 计算已确定的方向
-          let establishedDirRow = second.row - first.row;
-          let establishedDirCol = second.col - first.col;
-          let normDirRow = establishedDirRow === 0 ? 0 : (establishedDirRow > 0 ? 1 : -1);
-          let normDirCol = establishedDirCol === 0 ? 0 : (establishedDirCol > 0 ? 1 : -1);
-
-          // 当前这一步的方向
-          let currentDirRow = dr === 0 ? 0 : (dr > 0 ? 1 : -1);
-          let currentDirCol = dc === 0 ? 0 : (dc > 0 ? 1 : -1);
-
-          // 检查方向是否一致
-          if (currentDirRow !== normDirRow || currentDirCol !== normDirCol) {
-            console.log('🔧 检测到方向偏离，自动纠正', {
-              established: { row: normDirRow, col: normDirCol },
-              current: { row: currentDirRow, col: currentDirCol }
-            });
-
-            // 尝试纠正：撤销最后一个格子，看是否能回到正确方向
-            if (selectedCells.length >= 3) {
-              let removed = selectedCells.pop();
-              let removedElement = document.querySelector(`.cell[data-row="${removed.row}"][data-col="${removed.col}"]`);
-              if (removedElement) removedElement.classList.remove('selected');
-              console.log('↩️ 撤销上一个格子', removed);
-
-              // 重新计算与倒数第二个格子的关系
-              let newLast = selectedCells[selectedCells.length - 1];
-              let newDr = row - newLast.row;
-              let newDc = col - newLast.col;
-              let newCurrentDirRow = newDr === 0 ? 0 : (newDr > 0 ? 1 : -1);
-              let newCurrentDirCol = newDc === 0 ? 0 : (newDc > 0 ? 1 : -1);
-
-              // 检查撤销后是否方向一致
-              if (newCurrentDirRow === normDirRow && newCurrentDirCol === normDirCol &&
-                  Math.abs(newDr) <= 1 && Math.abs(newDc) <= 1) {
-                console.log('✅ 纠正成功，继续正确方向');
-                // 继续添加当前格子
-              } else {
-                // 纠正失败，恢复被撤销的格子
-                selectedCells.push(removed);
-                if (removedElement) removedElement.classList.add('selected');
-                console.log('❌ 纠正失败，忽略此格子');
-                return;
-              }
-            } else {
-              // 只有2个格子时，方向改变就忽略
-              console.log('❌ 方向改变，忽略');
-              return;
-            }
-          }
-        }
-      }
-
-      // 添加格子
-      selectedCells.push({ row, col });
-      e.currentTarget.classList.add('selected');
       drawSelectionLine();
+    }
+
+    // 调整为有效直线：找到最接近当前位置的直线方向
+    function adjustToLine(start, current) {
+      let dr = current.row - start.row;
+      let dc = current.col - start.col;
+
+      // 8个方向
+      const directions = [
+        { dr: 0, dc: 1 },   // 右
+        { dr: 0, dc: -1 },  // 左
+        { dr: 1, dc: 0 },   // 下
+        { dr: -1, dc: 0 },  // 上
+        { dr: 1, dc: 1 },   // 右下
+        { dr: -1, dc: -1 }, // 左上
+        { dr: 1, dc: -1 },  // 左下
+        { dr: -1, dc: 1 }   // 右上
+      ];
+
+      let bestDir = null;
+      let bestDist = Infinity;
+
+      for (let dir of directions) {
+        // 沿这个方向，找到最接近current的点
+        // 计算在这个方向上走多少步最接近current
+        let steps;
+        if (dir.dr === 0) {
+          steps = dc * dir.dc > 0 ? Math.abs(dc) : 0;
+        } else if (dir.dc === 0) {
+          steps = dr * dir.dr > 0 ? Math.abs(dr) : 0;
+        } else {
+          // 斜向：取dr和dc投影的较小值
+          let stepsR = dr * dir.dr > 0 ? Math.abs(dr) : 0;
+          let stepsC = dc * dir.dc > 0 ? Math.abs(dc) : 0;
+          steps = Math.min(stepsR, stepsC);
+        }
+
+        if (steps === 0) continue;
+
+        // 这个方向上走steps步到达的点
+        let endRow = start.row + steps * dir.dr;
+        let endCol = start.col + steps * dir.dc;
+
+        // 计算与current的距离
+        let dist = Math.abs(endRow - current.row) + Math.abs(endCol - current.col);
+
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestDir = dir;
+        }
+      }
+
+      if (!bestDir) {
+        return [start];
+      }
+
+      // 计算步数
+      let steps;
+      if (bestDir.dr === 0) {
+        steps = Math.abs(dc);
+      } else if (bestDir.dc === 0) {
+        steps = Math.abs(dr);
+      } else {
+        steps = Math.min(Math.abs(dr), Math.abs(dc));
+      }
+
+      // 生成直线
+      let cells = [];
+      for (let i = 0; i <= steps; i++) {
+        cells.push({
+          row: start.row + i * bestDir.dr,
+          col: start.col + i * bestDir.dc
+        });
+      }
+
+      return cells;
     }
 
     // 鼠标松开
@@ -852,57 +925,28 @@
 
       // 检查选择是否有效
       checkSelection();
+
+      // 重置状态
+      startCell = null;
     }
 
-    // 检查选择的格子是否能形成一条直线（更智能的判断）
-    function canFormLine(cells) {
-      if (cells.length < 2) return true;
-      if (cells.length === 2) return true;
-
-      // 对于3个或更多格子，使用更可靠的方法：
-      // 检查是否所有格子都在同一条直线上（横、竖、斜）
-
-      // 先检查是否所有格子在同一行
-      if (cells.every(c => c.row === cells[0].row)) {
-        return true; // 横线
+    // 清除选择的UI（不清空数组）
+    function clearSelectionUI() {
+      document.querySelectorAll('.cell.selected').forEach(el => {
+        el.classList.remove('selected');
+      });
+      if (selectionLine) {
+        selectionLine.remove();
+        selectionLine = null;
       }
-
-      // 检查是否所有格子在同一列
-      if (cells.every(c => c.col === cells[0].col)) {
-        return true; // 竖线
-      }
-
-      // 检查是否在主对角线方向（左上到右下，row和col同步增加）
-      let dr = cells[1].row - cells[0].row;
-      let dc = cells[1].col - cells[0].col;
-
-      // 标准化方向
-      let dirRow = dr === 0 ? 0 : (dr > 0 ? 1 : -1);
-      let dirCol = dc === 0 ? 0 : (dc > 0 ? 1 : -1);
-
-      // 检查是否所有相邻格子对的方向都一致
-      for (let i = 1; i < cells.length - 1; i++) {
-        let dr2 = cells[i+1].row - cells[i].row;
-        let dc2 = cells[i+1].col - cells[i].col;
-        let dirRow2 = dr2 === 0 ? 0 : (dr2 > 0 ? 1 : -1);
-        let dirCol2 = dc2 === 0 ? 0 : (dc2 > 0 ? 1 : -1);
-
-        if (dirRow2 !== dirRow || dirCol2 !== dirCol) {
-          console.log('❌ 方向不一致', {
-            expected: {dirRow, dirCol},
-            actual: {dirRow2, dirCol2},
-            cells: [cells[i], cells[i+1]]
-          });
-          return false;
-        }
-      }
-
-      return true;
     }
 
-    // 检查是否在同一直线上（旧函数，保留兼容）
-    function isInSameLine(cells) {
-      return canFormLine(cells);
+    // 清除选择（包括状态）
+    function clearSelection() {
+      clearSelectionUI();
+      selectedCells = [];
+      startCell = null;
+      isSelecting = false;
     }
 
     // 检查选择
@@ -917,25 +961,17 @@
 
       // 检查图案是否相同
       let firstPattern = board[selectedCells[0].row][selectedCells[0].col];
-      let patternIndices = selectedCells.map(c => board[c.row][c.col]);
       let patterns = selectedCells.map(c => boardPatterns[c.row][c.col]);
 
       console.log('🎨 检查图案', {
         firstPattern,
-        patternIndices,
         patterns,
         allSame: selectedCells.every(c => board[c.row][c.col] === firstPattern)
       });
 
       if (!selectedCells.every(c => board[c.row][c.col] === firstPattern)) {
         console.log('❌ 图案不同');
-        clearSelection();
-        return;
-      }
-
-      // 检查是否在一条直线上
-      if (!isValidLine(selectedCells)) {
-        console.log('❌ 不在一条直线上');
+        playErrorSound();
         clearSelection();
         return;
       }
@@ -965,69 +1001,12 @@
           setTimeout(endGame, 500);
         }
       } else {
-        // 错误
+        // 错误 - 图案相同但不是目标连珠
         console.log('❌ 不是目标连珠或已找过');
         playErrorSound();
       }
 
       clearSelection();
-    }
-
-    // 检查是否在一条直线上
-    function isValidLine(cells) {
-      if (cells.length !== 4) return false;
-
-      // 按行列排序
-      let sorted = [...cells].sort((a, b) => {
-        if (a.row !== b.row) return a.row - b.row;
-        return a.col - b.col;
-      });
-
-      // 检查横向
-      if (sorted.every(c => c.row === sorted[0].row)) {
-        for (let i = 1; i < 4; i++) {
-          if (sorted[i].col !== sorted[i-1].col + 1) return false;
-        }
-        return true;
-      }
-
-      // 检查竖向
-      if (sorted.every(c => c.col === sorted[0].col)) {
-        for (let i = 1; i < 4; i++) {
-          if (sorted[i].row !== sorted[i-1].row + 1) return false;
-        }
-        return true;
-      }
-
-      // 检查左上到右下
-      let dr1 = sorted[1].row - sorted[0].row;
-      let dc1 = sorted[1].col - sorted[0].col;
-      if (dr1 === dc1 && dr1 === 1) {
-        for (let i = 2; i < 4; i++) {
-          let dr = sorted[i].row - sorted[i-1].row;
-          let dc = sorted[i].col - sorted[i-1].col;
-          if (dr !== 1 || dc !== 1) return false;
-        }
-        return true;
-      }
-
-      // 检查右上到左下
-      sorted = [...cells].sort((a, b) => {
-        if (a.row !== b.row) return a.row - b.row;
-        return b.col - a.col;
-      });
-      dr1 = sorted[1].row - sorted[0].row;
-      dc1 = sorted[1].col - sorted[0].col;
-      if (dr1 === 1 && dc1 === -1) {
-        for (let i = 2; i < 4; i++) {
-          let dr = sorted[i].row - sorted[i-1].row;
-          let dc = sorted[i].col - sorted[i-1].col;
-          if (dr !== 1 || dc !== -1) return false;
-        }
-        return true;
-      }
-
-      return false;
     }
 
     // 标记为已找到
@@ -1036,19 +1015,6 @@
         let cell = document.querySelector(`.cell[data-row="${c.row}"][data-col="${c.col}"]`);
         if (cell) cell.classList.add('found');
       });
-    }
-
-    // 清除选择
-    function clearSelection() {
-      document.querySelectorAll('.cell.selected').forEach(el => {
-        el.classList.remove('selected');
-      });
-      selectedCells = [];
-
-      if (selectionLine) {
-        selectionLine.remove();
-        selectionLine = null;
-      }
     }
 
     // 音效
@@ -1121,6 +1087,16 @@
 
       // 开始API轮次记录
       try {
+        // 先上报当前等级
+        const levelForm = new URLSearchParams();
+        levelForm.set('session_id', sessionId);
+        levelForm.set('level', String(currentLevel));
+        await fetch('/api/session/update-level', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: levelForm
+        });
+
         const form = new URLSearchParams();
         form.set('session_id', sessionId);
         form.set('round_number', 1);
@@ -1277,6 +1253,7 @@
         if (isSelecting) {
           isSelecting = false;
           checkSelection();
+          startCell = null;
         }
       });
     });
@@ -1344,8 +1321,7 @@
         <ul>
           <li>找出棋盘上所有4个相同图案的连珠</li>
           <li>相连方式：横向、竖向、斜向都可以</li>
-          <li><strong style="color: #667eea;">操作方式：</strong>按住鼠标拖动选择4个相邻格子</li>
-          <li style="color: #e24a68; font-weight: 600;">💡 提示：慢速拖动，确保经过每个格子</li>
+          <li><strong style="color: #667eea;">操作方式：</strong>按住起点拖动，系统自动识别方向并纠正</li>
           <li>找到所有目标连珠即可通关</li>
         </ul>
       </div>
